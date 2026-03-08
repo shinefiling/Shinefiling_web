@@ -94,6 +94,10 @@ jobs:
           cd /home/prakash/Shinefiling_web/shinefiling-backend/target/
           sudo systemctl daemon-reload
           sudo systemctl enable shinefiling-backend
+          
+          # Forcefully kill any process on 8080 if systemctl stop failed to clear it
+          sudo fuser -k 8080/tcp || true
+          
           sudo systemctl restart shinefiling-backend
 
           # 4. Wait for backend to start (Critical for proxy/API ready state)
