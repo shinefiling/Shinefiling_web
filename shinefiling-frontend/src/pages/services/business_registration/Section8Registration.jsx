@@ -5,7 +5,7 @@ import {
     User, MapPin, Plus, Trash2, ArrowLeft, ArrowRight, X, IndianRupee, Heart, Building, Users, Receipt
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { submitSection8Registration } from '../../../api';
+import { submitSection8Registration, uploadFile } from '../../../api';
 
 
 
@@ -174,7 +174,7 @@ const Section8Registration = ({ isLoggedIn, isModal = false, planProp, onClose }
             if (key.includes('director')) category = 'director_docs';
 
             // Real API Call
-            const response = await import('../../../api').then(module => module.uploadFile(file, category));
+            const response = await uploadFile(file, category);
 
             setUploadedFiles(prev => ({
                 ...prev,
