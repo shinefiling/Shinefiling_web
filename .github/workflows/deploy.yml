@@ -64,7 +64,7 @@ jobs:
         key: ${{ secrets.SERVER_SSH_KEY }}
         port: ${{ secrets.SERVER_PORT }}
         source: "shinefiling-frontend/dist/*"
-        target: "/home/prakash/Shinefiling_web/shinefiling-frontend-new/"
+        target: "/home/prakash/Shinefiling_transfer/"
 
     # 8️⃣ Deploy via SSH with PEM key
     - name: Deploy to Server
@@ -81,14 +81,23 @@ jobs:
           # 1. Update Frontend via Apache
           sudo mkdir -p /var/www/shinefiling
           sudo rm -rf /var/www/shinefiling/*
-          # Copy from the new location where scp-action put the files
-          sudo cp -r /home/prakash/Shinefiling_web/shinefiling-frontend-new/shinefiling-frontend/dist/* /var/www/shinefiling/
+          
+          # DEBUG: List transfer folder to verify contents (See this in GitHub Actions logs)
+          echo "Listing transfer folder contents:"
+          ls -R /home/prakash/Shinefiling_transfer/
+          
+          # Move files to Apache (Robust path matching)
+          # scp-action puts files into /home/prakash/Shinefiling_transfer/shinefiling-frontend/dist/
+          sudo cp -r /home/prakash/Shinefiling_transfer/shinefiling-frontend/dist/* /var/www/shinefiling/
           sudo chown -R $USER:$USER /var/www/shinefiling
           sudo chmod -R 755 /var/www/shinefiling
-
+          
+          # Cleanup transfer folder
+          sudo rm -rf /home/prakash/Shinefiling_transfer/*
+          
           # 2. Reload Apache
           sudo a2enmod proxy proxy_http rewrite || true
-          sudo systemctl reload apache2
+          sudo systemctl restart apache2
 
           # 3. Manage Backend Service
           cd /home/prakash/Shinefiling_web/shinefiling-backend/target/
