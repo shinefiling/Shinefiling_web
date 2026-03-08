@@ -78,27 +78,27 @@ jobs:
           # Stop backend service (if exists)
           sudo systemctl stop shinefiling-backend || true
 
-          # Move artifacts to final destination
-          sudo mkdir -p /home/prakash/Shinefiling_web/shinefiling-backend/target/
-          cp /home/prakash/Shinefiling_web/shinefiling-backend/target/shinefiling-backend-0.0.1-SNAPSHOT.jar /home/prakash/Shinefiling_web/shinefiling-backend/target/ || true
-
-          # Copy frontend dist to Apache
+          # 1. Update Frontend via Apache
           sudo mkdir -p /var/www/shinefiling
           sudo rm -rf /var/www/shinefiling/*
+          # scp-action upload files preserving subdir structure
           sudo cp -r /home/prakash/Shinefiling_web/shinefiling-frontend/dist/* /var/www/shinefiling/
-          sudo chown -R ubuntu:ubuntu /var/www/shinefiling || sudo chown -R $USER:$USER /var/www/shinefiling
+          sudo chown -R $USER:$USER /var/www/shinefiling
           sudo chmod -R 755 /var/www/shinefiling
 
-          # Enable Apache proxy modules if not already
+          # 2. Reload Apache
           sudo a2enmod proxy proxy_http rewrite || true
-
-          # Reload Apache
           sudo systemctl reload apache2
 
-          # Start backend service
+          # 3. Manage Backend Service
+          cd /home/prakash/Shinefiling_web/shinefiling-backend/target/
           sudo systemctl daemon-reload
           sudo systemctl enable shinefiling-backend
           sudo systemctl restart shinefiling-backend
+
+          # 4. Wait for backend to start (Critical for proxy/API ready state)
+          echo "Waiting for backend to initialize..."
+          sleep 5
 
           # Optional: renew SSL (if Certbot installed)
           sudo certbot renew --quiet || true

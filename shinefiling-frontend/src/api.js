@@ -5,9 +5,9 @@ const getBaseUrl = () => {
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
         return 'http://localhost:8080/api';
     }
-    // Otherwise use the specific IP backend (assuming backend runs on same host as served frontend)
-    // You can also hardcode the IP here if the backend is on a different specific machine
-    return `http://${hostname}:8080/api`;
+    // For production/IP access, use relative path to avoid 'Mixed Content' errors (HTTP vs HTTPS)
+    // This assumes Apache/Nginx is correctly configured to proxy /api to the backend
+    return '/api';
 };
 
 export const BASE_URL = getBaseUrl();
