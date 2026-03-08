@@ -1,0 +1,21 @@
+{
+    "name": "ShineFiling - Business Compliance",
+    "short_name": "ShineFiling",
+    "start_url": "/dashboard?source=pwa",
+    "display": "standalone",
+    "background_color": "#FDFBF7",
+    "theme_color": "#10232A",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/logo.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/logo.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
