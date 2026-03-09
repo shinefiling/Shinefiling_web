@@ -1,20 +1,24 @@
 // Dynamic Base URL to support both Localhost and Network Devices
 const getBaseUrl = () => {
+    // 1. Priority: Environment Variable from Vite .env files
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
 
-    // Use relative path for production domains to avoid mixed content errors
-    if (hostname.includes('shinefiling.com')) {
+    // 2. Production: Use relative path if we are on a domain to avoid mixed content errors
+    if (hostname.includes('shinefiling.com') || (hostname.includes('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname))) {
         return '/api';
     }
 
-    // If running on localhost, use localhost backend
+    // 3. Localhost: Use localhost backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
         return 'http://localhost:8080/api';
     }
-    if (hostname.includes('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-        return '/api';
-    }
+
+    // 4. Fallback: For Network-based (IP) access during dev
     return `${protocol}//${hostname}:8080/api`;
 };
 
