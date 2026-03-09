@@ -27,7 +27,6 @@ import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:5173")
 public class UserController {
 
     @Autowired
@@ -134,7 +133,7 @@ public class UserController {
             Path filePath = Paths.get(uploadDir + fileName);
             Files.write(filePath, file.getBytes());
 
-            String fileUrl = "http://localhost:8080/api/users/uploads/" + fileName;
+            String fileUrl = "/api/users/uploads/" + fileName;
             user.setProfileImage(fileUrl);
             userRepository.save(user);
 

@@ -45,8 +45,12 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        // Use patterns to allow all origins while supporting credentials
-        config.setAllowedOriginPatterns(java.util.Collections.singletonList("*"));
+        // Allow production and local dev origins
+        config.setAllowedOrigins(java.util.Arrays.asList(
+                "https://shinefiling.com",
+                "http://shinefiling.com",
+                "http://localhost:5173",
+                "http://localhost:3000"));
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         source.registerCorsConfiguration("/**", config);
