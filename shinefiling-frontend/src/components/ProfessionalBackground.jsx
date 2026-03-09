@@ -1,17 +1,24 @@
-﻿import React, { useCallback } from 'react';
-import Particles from "react-tsparticles";
-import { loadSlim } from "tsparticles-slim";
+﻿import React, { useEffect, useState } from 'react';
+import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
 
 const ProfessionalBackground = () => {
-    const particlesInit = useCallback(async engine => {
-        await loadSlim(engine);
+    const [init, setInit] = useState(false);
+
+    useEffect(() => {
+        initParticlesEngine(async (engine) => {
+            await loadSlim(engine);
+        }).then(() => {
+            setInit(true);
+        });
     }, []);
+
+    if (!init) return null;
 
     return (
         <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
             <Particles
                 id="tsparticles"
-                init={particlesInit}
                 options={{
                     fullScreen: { enable: false },
                     background: {
