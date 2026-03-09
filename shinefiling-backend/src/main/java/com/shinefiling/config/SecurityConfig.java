@@ -45,12 +45,16 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        // Allow production and local dev origins
-        config.setAllowedOrigins(java.util.Arrays.asList(
+        // Allow common local dev origins and production
+        config.setAllowedOriginPatterns(java.util.Arrays.asList(
                 "https://shinefiling.com",
                 "http://shinefiling.com",
-                "http://localhost:5173",
-                "http://localhost:3000"));
+                "https://www.shinefiling.com",
+                "http://www.shinefiling.com",
+                "http://localhost:[*]",
+                "http://127.0.0.1:[*]",
+                "http://[*]:[*]", // Allow any IP during development/staging
+                "https://[*]:[*]"));
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         source.registerCorsConfiguration("/**", config);

@@ -21,64 +21,6 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Master Admin
-        User admin = userRepository.findByEmail("admin@shinefiling.com").orElse(new User());
-        admin.setFullName("Master Admin");
-        admin.setEmail("admin@shinefiling.com");
-        admin.setMobile("9999999999");
-        if (admin.getPassword() == null)
-            admin.setPassword(passwordEncoder.encode("admin")); // Only set if new
-        admin.setRole("MASTER_ADMIN");
-        admin.setVerified(true);
-        userRepository.save(admin);
-        System.out.println("Master Admin synced: admin@shinefiling.com");
-
-        // Sub Admin
-        User sub = userRepository.findByEmail("sub@shinefiling.com").orElse(new User());
-        sub.setFullName("Sub Admin");
-        sub.setEmail("sub@shinefiling.com");
-        sub.setMobile("8888888888");
-        if (sub.getPassword() == null)
-            sub.setPassword(passwordEncoder.encode("admin"));
-        sub.setRole("SUB_ADMIN");
-        sub.setVerified(true);
-        userRepository.save(sub);
-        System.out.println("Sub Admin synced: sub@shinefiling.com");
-
-        // Agent Admin
-        User agent = userRepository.findByEmail("agent@shinefiling.com").orElse(new User());
-        agent.setFullName("Agent Admin");
-        agent.setEmail("agent@shinefiling.com");
-        agent.setMobile("7777777777");
-        if (agent.getPassword() == null)
-            agent.setPassword(passwordEncoder.encode("admin"));
-        agent.setRole("AGENT");
-        agent.setVerified(true);
-        userRepository.save(agent);
-        System.out.println("Agent synced: agent@shinefiling.com");
-        // Ensure Client User exists
-        User client = userRepository.findByEmail("client@shinefiling.com").orElse(new User());
-        client.setFullName("Test Client");
-        client.setEmail("client@shinefiling.com");
-        client.setMobile("9000000000");
-        client.setPassword(passwordEncoder.encode("admin")); // Enforcing 'admin' as password
-        client.setRole("USER");
-        client.setVerified(true);
-        if (client.getStatus() == null)
-            client.setStatus("Active");
-        userRepository.save(client);
-
-        // CA User
-        User ca = userRepository.findByEmail("ca@shinefiling.com").orElse(new User());
-        ca.setFullName("Chartered Accountant");
-        ca.setEmail("ca@shinefiling.com");
-        ca.setMobile("9988776655");
-        if (ca.getPassword() == null)
-            ca.setPassword(passwordEncoder.encode("admin"));
-        ca.setRole("CA");
-        ca.setVerified(true);
-        userRepository.save(ca);
-        System.out.println("CA synced: ca@shinefiling.com");
         // Seed Services
         seedServices();
     }

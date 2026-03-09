@@ -1,13 +1,26 @@
 // Dynamic Base URL to support both Localhost and Network Devices
 const getBaseUrl = () => {
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+
     // If running on localhost, use localhost backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
         return 'http://localhost:8080/api';
     }
-    // For production/IP access, use relative path to avoid 'Mixed Content' errors (HTTP vs HTTPS)
-    // This assumes Apache/Nginx is correctly configured to proxy /api to the backend
-    return '/api';
+
+    // If we're on a public IP or domain and NOT using a reverse proxy (like Nginx),
+    // we might need to hit the backend port directly.
+    // However, if we're on HTTPS, we MUST use a reverse proxy or HTTPS backend.
+
+    // Check if the current environment is strictly 'production' (like a domain)
+    if (hostname.includes('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+        // For domains, relative path is BEST if Nginx is used
+        return '/api';
+    }
+
+    // fallback for IP-based access:
+    // Try to use the same host but port 8080
+    return `${protocol}//${hostname}:8080/api`;
 };
 
 export const BASE_URL = getBaseUrl();
