@@ -19,7 +19,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '20'
+        node-version: '22'
 
     # 3️⃣ Setup Java 17 for backend (Updated from 11 as per pom.xml)
     - name: Setup Java

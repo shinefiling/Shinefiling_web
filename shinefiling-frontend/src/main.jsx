@@ -6,7 +6,7 @@ import './index.css'
 import App from './App.jsx'
 
 // TODO: Replace with your actual Google Client ID from Google Cloud Console
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "585286115884-q9mk9rmifguakqtrv51mqtpq3703l0da.apps.googleusercontent.com";
 
 createRoot(document.getElementById('root')).render(
   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>

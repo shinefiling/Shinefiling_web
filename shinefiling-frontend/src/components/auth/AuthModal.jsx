@@ -5,6 +5,7 @@ import {
     Shield, CheckCircle, ArrowRight, User,
     AlertCircle, Eye, EyeOff, Building
 } from 'lucide-react';
+import axios from 'axios';
 import { loginUser, signupUser, verifyOtp, resendOtp, googleLogin } from '../../api';
 import { useGoogleLogin } from '@react-oauth/google';
 
@@ -49,7 +50,15 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
         onSuccess: async (tokenResponse) => {
             try {
                 setLoading(true);
-                const data = await googleLogin(tokenResponse.access_token);
+                // 1. Fetch User Info using Access Token
+                const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
+
+                const { email, name, sub: googleId } = userInfoResponse.data;
+
+                // 2. Send Profile to Backend
+                const data = await googleLogin({ email, name, googleId });
 
                 // Robust User/Token Handling
                 const userObj = data.user || data;
@@ -61,12 +70,13 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                 onAuthSuccess(finalUser);
                 onClose();
             } catch (err) {
+                console.error("Google Login Error:", err);
                 setError(err.response?.data?.message || 'Google login failed');
             } finally {
                 setLoading(false);
             }
         },
-        onError: error => console.log('Login Failed:', error)
+        onError: error => console.error('Login Failed:', error)
     });
 
     const handleSubmit = async (e) => {
