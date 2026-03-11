@@ -55,6 +55,7 @@ jobs:
         port: ${{ secrets.SERVER_PORT }}
         source: "shinefiling-backend/target/shinefiling-backend-0.0.1-SNAPSHOT.jar"
         target: "/home/prakash/Shinefiling_web/"
+        strip_components: 0 # Keeps "shinefiling-backend/target/"
 
     - name: Copy Frontend to Server
       uses: appleboy/scp-action@v0.1.4
@@ -65,8 +66,9 @@ jobs:
         port: ${{ secrets.SERVER_PORT }}
         source: "shinefiling-frontend/dist/*"
         target: "/home/prakash/Shinefiling_transfer/"
+        strip_components: 2 # Strips "shinefiling-frontend/dist/"
 
-    # 8️⃣ Deploy via SSH with PEM key
+    # 8️⃣ Deploy via SSH
     - name: Deploy to Server
       uses: appleboy/ssh-action@v0.1.7
       with:
@@ -75,45 +77,28 @@ jobs:
         key: ${{ secrets.SERVER_SSH_KEY }}
         port: ${{ secrets.SERVER_PORT }}
         script: |
-          # Use password for sudo commands
           export PASS="${{ secrets.SERVER_PASSWORD }}"
-
-          # Stop backend service (if exists)
-          echo "$PASS" | sudo -S systemctl stop shinefiling-backend || true
-
-          # 1. Update Frontend via Apache
+          
+          # 1. Update Frontend
           echo "$PASS" | sudo -S mkdir -p /var/www/shinefiling
           echo "$PASS" | sudo -S rm -rf /var/www/shinefiling/*
-          
-          # DEBUG: List transfer folder to verify contents
-          echo "Listing transfer folder contents:"
-          ls -R /home/prakash/Shinefiling_transfer/
-          
-          # Move files to Apache
-          echo "$PASS" | sudo -S cp -r /home/prakash/Shinefiling_transfer/shinefiling-frontend/dist/* /var/www/shinefiling/
-          echo "$PASS" | sudo -S chown -R $USER:$USER /var/www/shinefiling
+          echo "$PASS" | sudo -S cp -r /home/prakash/Shinefiling_transfer/* /var/www/shinefiling/
+          echo "$PASS" | sudo -S chown -R www-data:www-data /var/www/shinefiling
           echo "$PASS" | sudo -S chmod -R 755 /var/www/shinefiling
           
           # Cleanup transfer folder
-          echo "$PASS" | sudo -S rm -rf /home/prakash/Shinefiling_transfer/*
+          rm -rf /home/prakash/Shinefiling_transfer/*
           
-          # 2. Reload Apache
-          echo "$PASS" | sudo -S a2enmod proxy proxy_http rewrite || true
+          # 2. Restart Apache
           echo "$PASS" | sudo -S systemctl restart apache2
 
-          # 3. Manage Backend Service
-          cd /home/prakash/Shinefiling_web/shinefiling-backend/target/
-          echo "$PASS" | sudo -S systemctl daemon-reload
-          echo "$PASS" | sudo -S systemctl enable shinefiling-backend
-          
-          # Forcefully kill any process on 8080
+          # 3. Manage Backend
+          # Kill any manual java process to avoid port conflict
           echo "$PASS" | sudo -S fuser -k 8080/tcp || true
           
+          # Restart the systemd service
+          echo "$PASS" | sudo -S systemctl daemon-reload
           echo "$PASS" | sudo -S systemctl restart shinefiling-backend
-
-          # 4. Wait for backend to start
-          echo "Waiting for backend to initialize..."
-          sleep 5
-
-          # Optional: renew SSL
-          echo "$PASS" | sudo -S certbot renew --quiet || true
+          echo "$PASS" | sudo -S systemctl enable shinefiling-backend
+          
+          echo "Deployment successful!"
