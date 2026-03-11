@@ -43,7 +43,7 @@ public class FirewallFilter extends OncePerRequestFilter {
     private static final Pattern SENSITIVE_FILES = Pattern
             .compile("(?i)(\\.env|\\.git|\\.htaccess|config\\.php|web\\.config)");
     private static final Pattern BAD_USER_AGENTS = Pattern
-            .compile("(?i)(sqlmap|nikto|nmap|nessus|curl|wget|python|scanner)");
+            .compile("(?i)(sqlmap|nikto|nmap|nessus|python|scanner)");
     // LAYER 21: Protected Folder Guard
     private static final Pattern PROTECTED_UPLOADS_EXEC = Pattern
             .compile("(?i)^.*\\.(php|php5|jsp|jspx|asp|aspx|exe|sh|bat|cmd|pif|cgi|pl|py)$");
