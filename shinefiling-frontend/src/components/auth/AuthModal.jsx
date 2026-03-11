@@ -6,7 +6,7 @@ import {
     AlertCircle, Eye, EyeOff, Building
 } from 'lucide-react';
 import axios from 'axios';
-import { loginUser, signupUser, verifyOtp, resendOtp, googleLogin } from '../../api';
+import { loginUser, signupUser, verifyOtp, resendOtp, googleLogin, forgotPassword, resetPassword } from '../../api';
 import { useGoogleLogin } from '@react-oauth/google';
 
 const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) => {
@@ -23,7 +23,9 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
         email: '',
         password: '',
         mobile: '',
-        role: 'USER' // Default to Business Owner
+        role: 'USER', // Default to Business Owner
+        newPassword: '',
+        confirmPassword: ''
     });
 
     useEffect(() => {
@@ -104,6 +106,33 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                     onAuthSuccess(finalUser);
                     onClose();
                 }
+            } else if (mode === 'forgot') {
+                if (step === 'email') {
+                    // Step 1: Send OTP to Email
+                    await forgotPassword(formData.email);
+                    setStep('otp');
+                    setLoading(false);
+                } else if (step === 'otp') {
+                    // Step 2: Move to Reset Password form
+                    // We don't verify OTP here yet, we'll verify it during resetPassword call together
+                    setStep('reset');
+                    setLoading(false);
+                } else if (step === 'reset') {
+                    // Step 3: Final Reset
+                    if (formData.newPassword !== formData.confirmPassword) {
+                        throw new Error("Passwords do not match");
+                    }
+                    await resetPassword({
+                        email: formData.email,
+                        otp: otp,
+                        newPassword: formData.newPassword
+                    });
+                    setError('');
+                    alert("Password reset successful! You can now login.");
+                    setMode('login');
+                    setStep('details');
+                    setLoading(false);
+                }
             } else {
                 // Login
                 if (loginMethod === 'email') {
@@ -175,10 +204,10 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                                     <span className="font-bold text-xl tracking-wide">ShineFiling</span>
                                 </div>
                                 <h2 className="text-3xl font-bold leading-tight mb-3 text-[#ED6E3F]">
-                                    {mode === 'login' ? 'Welcome Back!' : 'Start Your Journey'}
+                                    {mode === 'login' ? 'Welcome Back!' : mode === 'signup' ? 'Start Your Journey' : 'Reset Password'}
                                 </h2>
                                 <p className="text-white/70 text-xs leading-relaxed max-w-xs">
-                                    Experience the easiest way to manage your business compliance.
+                                    {mode === 'forgot' ? 'Get back into your account easily.' : 'Experience the easiest way to manage your business compliance.'}
                                 </p>
                             </div>
 
@@ -211,12 +240,14 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                             <div className="max-w-xs mx-auto pt-2">
                                 <div className="mb-6">
                                     <h3 className="text-2xl font-bold text-[#043E52] mb-1">
-                                        {mode === 'login' ? 'Sign In' : (step === 'details' ? 'Create Account' : 'Verify OTP')}
+                                        {mode === 'login' ? 'Sign In' :
+                                            mode === 'signup' ? (step === 'details' ? 'Create Account' : 'Verify OTP') :
+                                                (step === 'email' ? 'Forgot Password' : step === 'otp' ? 'Validate OTP' : 'New Password')}
                                     </h3>
                                     <p className="text-slate-500 text-xs">
                                         {mode === 'login'
                                             ? 'Enter your credentials to access.'
-                                            : 'Fill in your details to get started.'}
+                                            : mode === 'signup' ? 'Fill in your details to get started.' : 'Follow steps to reset your password.'}
                                     </p>
                                 </div>
 
@@ -293,7 +324,18 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                                                     <div className="space-y-1">
                                                         <div className="flex justify-between items-center px-1">
                                                             <label className="text-[10px] font-bold text-slate-500">Password</label>
-                                                            {mode === 'login' && <button type="button" className="text-[9px] font-bold text-[#ED6E3F] hover:underline uppercase">Forgot Password?</button>}
+                                                            {mode === 'login' && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setMode('forgot');
+                                                                        setStep('email');
+                                                                    }}
+                                                                    className="text-[9px] font-bold text-[#ED6E3F] hover:underline uppercase"
+                                                                >
+                                                                    Forgot Password?
+                                                                </button>
+                                                            )}
                                                         </div>
                                                         <div className="relative">
                                                             <input
@@ -343,6 +385,43 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                                                 </div>
                                             )}
                                         </>
+                                    ) : mode === 'forgot' && step === 'reset' ? (
+                                        <div className="space-y-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-500 ml-1">New Password</label>
+                                                <input
+                                                    type="password"
+                                                    name="newPassword"
+                                                    value={formData.newPassword}
+                                                    onChange={handleChange}
+                                                    className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-500 ml-1">Confirm New Password</label>
+                                                <input
+                                                    type="password"
+                                                    name="confirmPassword"
+                                                    value={formData.confirmPassword}
+                                                    onChange={handleChange}
+                                                    className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : mode === 'forgot' && step === 'email' ? (
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 ml-1">Registered Email Address</label>
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                value={formData.email}
+                                                onChange={handleChange}
+                                                className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
+                                                required
+                                            />
+                                        </div>
                                     ) : (
                                         <div className="space-y-3 py-2">
                                             <p className="text-xs text-center text-slate-600">Enter code sent to <span className="font-bold text-[#043E52]">{formData.email}</span></p>
@@ -365,7 +444,8 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                                         >
                                             {loading ? 'Processing...' : (
                                                 <>
-                                                    {mode === 'login' ? 'Sign In' : 'Create Account'}
+                                                    {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' :
+                                                        (step === 'email' ? 'Send OTP' : step === 'otp' ? 'Continue' : 'Update Password')}
                                                     <ArrowRight size={18} />
                                                 </>
                                             )}

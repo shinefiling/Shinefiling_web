@@ -135,6 +135,24 @@ export const resendOtp = async (email) => {
     return handleResponse(response);
 };
 
+export const forgotPassword = async (email) => {
+    const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+    return handleResponse(response);
+};
+
+export const resetPassword = async (data) => {
+    const response = await fetch(`${BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+};
+
 
 
 // --- FILE UPLOAD ---

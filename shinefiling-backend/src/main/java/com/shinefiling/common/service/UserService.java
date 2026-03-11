@@ -79,6 +79,36 @@ public class UserService {
                 "Your new OTP for verification is: " + otp + "\nIt expires in 10 minutes.");
     }
 
+    public void forgotPassword(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+
+        String otp = String.format("%06d", new java.util.Random().nextInt(999999));
+        user.setOtp(otp);
+        user.setOtpExpiry(java.time.LocalDateTime.now().plusMinutes(10));
+        userRepository.save(user);
+
+        emailService.sendEmail(
+                user.getEmail(),
+                "ShineFiling - Password Reset OTP",
+                "Your OTP for password reset is: " + otp + "\nIt expires in 10 minutes.");
+    }
+
+    public void resetPassword(String email, String otp, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getOtp() != null && user.getOtp().equals(otp) &&
+                user.getOtpExpiry().isAfter(java.time.LocalDateTime.now())) {
+            user.setPassword(passwordEncoder.encode(newPassword));
+            user.setOtp(null); // Clear OTP after use
+            user.setOtpExpiry(null);
+            userRepository.save(user);
+        } else {
+            throw new RuntimeException("Invalid or expired OTP");
+        }
+    }
+
     public User loginUser(String email, String rawPassword) {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent()) {
