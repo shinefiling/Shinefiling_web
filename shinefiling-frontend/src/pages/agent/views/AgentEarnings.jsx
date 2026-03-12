@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Wallet, TrendingUp, Download, ArrowUpRight, IndianRupee, Clock } from 'lucide-react';
@@ -25,7 +25,13 @@ const AgentEarnings = ({ stats, user }) => {
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <h2 className="text-2xl font-bold text-[#043E52] dark:text-white">Finance & Earnings</h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-[#043E52] dark:text-white">Finance & Earnings</h2>
+                <div className="flex gap-2">
+                    <div className="px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-200/50">10% DIRECT COMMISSION</div>
+                    <div className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-bold rounded-full border border-blue-200/50">BONUS PAYOUTS ACTIVE</div>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Wallet Card */}

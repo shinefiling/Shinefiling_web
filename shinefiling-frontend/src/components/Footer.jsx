@@ -1,4 +1,4 @@
-﻿import React, { useContext } from 'react';
+import React, { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Instagram, Linkedin, Facebook, MapPin, Phone, Mail, ChevronRight } from 'lucide-react';
 import { SERVICE_DATA } from '../data/services';
@@ -222,7 +222,7 @@ const Footer = () => {
                                 <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-[#ED6E3F]/10 group-hover:text-[#ED6E3F] transition-all">
                                     <Mail size={14} />
                                 </div>
-                                <span className="text-xs">support@shinefiling.com</span>
+                                <span className="text-xs">info@shinefiling.com</span>
                             </div>
                             <div className="flex items-center gap-3 text-slate-600 group cursor-pointer hover:text-[#043E52] transition-colors">
                                 <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-[#ED6E3F]/10 group-hover:text-[#ED6E3F] transition-all">
@@ -289,7 +289,6 @@ const Footer = () => {
                     ))}
                 </div>
             </div>
-
             {/* Bottom Bar */}
             <div className="max-w-[1600px] mx-auto px-6">
                 <div className="pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-center items-center gap-6 text-xs text-slate-500 font-medium">

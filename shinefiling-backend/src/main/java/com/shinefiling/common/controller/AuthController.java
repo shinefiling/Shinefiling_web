@@ -84,9 +84,10 @@ public class AuthController {
         String email = payload.get("email");
         String name = payload.get("name");
         String googleId = payload.get("googleId");
+        String role = payload.get("role"); // Capture role from frontend
 
         try {
-            User user = userService.processGoogleLogin(email, name, googleId);
+            User user = userService.processGoogleLogin(email, name, googleId, role);
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

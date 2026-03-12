@@ -130,7 +130,7 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public User processGoogleLogin(String email, String fullName, String googleId) {
+    public User processGoogleLogin(String email, String fullName, String googleId, String role) {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -146,7 +146,7 @@ public class UserService {
             newUser.setEmail(email);
             newUser.setFullName(fullName);
             newUser.setGoogleId(googleId);
-            newUser.setRole("USER");
+            newUser.setRole(role != null ? role : "USER"); // Dynamic role
             newUser.setVerified(true); // Google users are pre-verified
             newUser.setLoginMethod("google");
             // Set dummy password

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -10,6 +10,7 @@ import {
 import { getApprovedTestimonials } from '../api';
 import AuthContext from '../context/AuthContext';
 import { getDashboardPath } from '../utils/permissions';
+import SEOHead from '../components/SEOHead';
 
 import heroBg from '../assets/hero-bg-final.png';
 import servicesBg from '../assets/services-bg.png';
@@ -231,6 +232,11 @@ const LandingPage = ({ isLoggedIn }) => {
 
     return (
         <div className="font-sans text-navy bg-white selection:bg-bronze/30 selection:text-navy overflow-x-hidden">
+            <SEOHead
+                title="ShineFiling - Hire Verified CA Freelancers & Expert Tax Consultants"
+                description="India's leading marketplace to hire CA freelancers online. Expert services for GST registration, ITR filing, company incorporation, and legal compliance across India."
+                keywords="CA freelancer India, hire CA online, GST registration India, ITR filing online, company registration India, chartered accountant freelancer, tax consultant India, best CA platform India, online accounting services, startup compliance India"
+            />
             {/* --- HERO SECTION (Refined Design) --- */}
             <section className="relative w-full min-h-[90vh] flex items-center pt-24 pb-32 lg:pt-32 lg:pb-40 bg-slate-50">
 

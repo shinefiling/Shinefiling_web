@@ -3,7 +3,7 @@
 // Handles extensive queries for Clients, Agents, and Guests
 
 const BUSINESS_HOURS = "9:00 AM - 7:00 PM (Mon-Sat)";
-const SUPPORT_EMAIL = "support@shinefiling.com";
+const SUPPORT_EMAIL = "info@shinefiling.com";
 const SUPPORT_PHONE = "+91-7639227019";
 
 // --- Helper for Dynamic Links ---
@@ -131,7 +131,7 @@ const KNOWLEDGE_BASE = {
         },
         {
             keywords: ['refund', 'cancel', 'money back'],
-            response: "Refunds are processed only if the work hasn't started. Once government fees are paid, they are non-refundable. Email support@shinefiling.com for help."
+            response: "Refunds are processed only if the work hasn't started. Once government fees are paid, they are non-refundable. Email info@shinefiling.com for help."
         },
 
         // --- ROC COMPLIANCE ---
@@ -300,11 +300,11 @@ const KNOWLEDGE_BASE = {
         // --- TROUBLESHOOTING ---
         {
             keywords: ['payment failed', 'transaction failed', 'money deducted'],
-            response: "If money was deducted but payment failed, don't worry! It will be auto-refunded in 5-7 days. Or share the transaction ID at support@shinefiling.com."
+            response: "If money was deducted but payment failed, don't worry! It will be auto-refunded in 5-7 days. Or share the transaction ID at info@shinefiling.com."
         },
         {
             keywords: ['upload issue', 'document size', 'cant upload'],
-            response: "Documents should be under 5MB (PDF/JPG). If you face issues, you can email them directly to your assigned agent or support@shinefiling.com."
+            response: "Documents should be under 5MB (PDF/JPG). If you face issues, you can email them directly to your assigned agent or info@shinefiling.com."
         }
     ]
 };

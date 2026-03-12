@@ -1,7 +1,8 @@
-﻿
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronRight, Briefcase, Users, FileText, CheckCircle, Smartphone, Mail, MapPin, Calendar, CreditCard, Upload } from 'lucide-react';
+import { Search, ChevronRight, Briefcase, Users, FileText, CheckCircle, Smartphone, Mail, MapPin, Calendar, CreditCard, Upload, AlertCircle } from 'lucide-react';
+import { getServiceCatalog, createAgentClientApplication } from '../../../api';
 
 const AgentNewApplication = ({ setActiveTab }) => {
     const [step, setStep] = useState(1);
@@ -12,31 +13,30 @@ const AgentNewApplication = ({ setActiveTab }) => {
         phone: '',
         state: ''
     });
+    const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
 
-    // Mock Service Data if Import fails
-    const serviceCategories = [
-        {
-            id: 'business',
-            label: 'Business Registration',
-            icon: Briefcase,
-            services: [
-                { id: 'pvt_ltd', name: 'Private Limited Company', price: 1999 },
-                { id: 'llp', name: 'LLP Registration', price: 1499 },
-                { id: 'opc', name: 'One Person Company', price: 1499 },
-            ]
-        },
-        {
-            id: 'licenses',
-            label: 'Licenses & Registrations',
-            icon: CheckCircle,
-            services: [
-                { id: 'gst_reg', name: 'GST Registration', price: 999 },
-                { id: 'fssai_basic', name: 'FSSAI Basic Registration', price: 1499 },
-                { id: 'udyam', name: 'Udyam Registration', price: 499 },
-            ]
-        }
-    ];
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const data = await getServiceCatalog();
+                // Group by category
+                const grouped = (data || []).reduce((acc, service) => {
+                    const cat = service.category || 'Business Services';
+                    if (!acc[cat]) acc[cat] = { label: cat, services: [] };
+                    acc[cat].services.push(service);
+                    return acc;
+                }, {});
+                setServices(Object.values(grouped));
+            } catch (err) {
+                console.error("Failed to fetch services", err);
+                // Fallback to mock if API fails
+            }
+        };
+        fetchServices();
+    }, []);
 
     const handleServiceSelect = (service) => {
         setSelectedService(service);
@@ -50,11 +50,19 @@ const AgentNewApplication = ({ setActiveTab }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        // Simulate API
-        setTimeout(() => {
-            setLoading(false);
+        setError(null);
+        try {
+            await createAgentClientApplication(user.id, {
+                serviceId: selectedService.id,
+                serviceName: selectedService.name || selectedService.title,
+                ...clientDetails
+            });
             setStep(3);
-        }, 1500);
+        } catch (err) {
+            setError(err.message || "Failed to create application. Please try again.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -77,10 +85,10 @@ const AgentNewApplication = ({ setActiveTab }) => {
                 <div className="space-y-6">
                     <p className="text-slate-500 dark:text-slate-400">Select the service you want to apply for your client.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {serviceCategories.map(cat => (
-                            <div key={cat.id} className="space-y-4">
+                        {services.length > 0 ? services.map(cat => (
+                            <div key={cat.label} className="space-y-4">
                                 <h3 className="font-bold text-[#043E52] dark:text-white flex items-center gap-2">
-                                    <cat.icon size={20} className="text-[#ED6E3F]" /> {cat.label}
+                                    <Briefcase size={20} className="text-[#ED6E3F]" /> {cat.label}
                                 </h3>
                                 <div className="space-y-2">
                                     {cat.services.map(service => (
@@ -89,13 +97,18 @@ const AgentNewApplication = ({ setActiveTab }) => {
                                             onClick={() => handleServiceSelect(service)}
                                             className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1C3540] border border-slate-100 dark:border-[#2C4A57] rounded-xl hover:border-[#ED6E3F] dark:hover:border-[#ED6E3F] hover:shadow-md transition-all group text-left"
                                         >
-                                            <span className="font-medium text-slate-700 dark:text-slate-200">{service.name}</span>
+                                            <span className="font-medium text-slate-700 dark:text-slate-200">{service.name || service.title}</span>
                                             <ChevronRight size={16} className="text-slate-300 group-hover:text-[#ED6E3F] transition-colors" />
                                         </button>
                                     ))}
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="md:col-span-2 py-12 text-center text-slate-400">
+                                <Briefcase size={40} className="mx-auto mb-4 opacity-20" />
+                                <p>Loading services...</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -103,11 +116,16 @@ const AgentNewApplication = ({ setActiveTab }) => {
             {/* Step 2: Client Details */}
             {step === 2 && (
                 <form onSubmit={handleSubmit} className="bg-white dark:bg-[#043E52] p-8 rounded-3xl border border-slate-100 dark:border-[#1C3540] shadow-sm space-y-6">
+                    {error && (
+                        <div className="p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 rounded-xl text-rose-600 dark:text-rose-400 text-sm flex items-center gap-3">
+                            <AlertCircle size={18} /> {error}
+                        </div>
+                    )}
                     <div className="flex items-center gap-3 bg-[#ED6E3F]/10 p-4 rounded-xl border border-[#ED6E3F]/20 mb-6">
                         <FileText className="text-[#ED6E3F]" />
                         <div>
                             <p className="text-xs font-bold text-[#ED6E3F] uppercase">Selected Service</p>
-                            <p className="font-bold text-[#043E52] dark:text-white">{selectedService?.name}</p>
+                            <p className="font-bold text-[#043E52] dark:text-white">{selectedService?.name || selectedService?.title}</p>
                         </div>
                         <button type="button" onClick={() => setStep(1)} className="ml-auto text-xs font-bold text-slate-400 hover:text-[#043E52] dark:hover:text-white underline">Change</button>
                     </div>

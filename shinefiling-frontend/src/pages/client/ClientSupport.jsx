@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { MessageCircle, Phone, FileText, ChevronRight, Send, X, Smile, Paperclip, HelpCircle, Search, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { submitSupportTicket, getBotResponse } from '../../api';
@@ -96,7 +96,7 @@ const ClientSupport = ({ setActiveTab }) => {
                     </div>
                     <h3 className="text-sm font-bold text-[#043E52] dark:text-white mb-0.5">Email Us</h3>
                     <p className="text-slate-500 dark:text-slate-400 text-[9px] mb-2 leading-tight">Response within 24 hours.</p>
-                    <p className="text-[10px] font-bold text-slate-800 dark:text-white">support@shinefiling.com</p>
+                    <p className="text-[10px] font-bold text-slate-800 dark:text-white">info@shinefiling.com</p>
                 </div>
             </div>
 

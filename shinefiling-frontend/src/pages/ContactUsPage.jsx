@@ -1,151 +1,227 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Phone, MapPin, Clock, Send, MessageSquare, ArrowRight } from 'lucide-react';
+import { 
+    Mail, Phone, Clock, Shield, Zap, MessageSquare, 
+    Headphones, FileText, UserCheck, 
+    ArrowRight, Globe, CheckCircle
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const ContactUsPage = () => {
-
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
 
-    return (
-        <div className="min-h-screen bg-[#F2F1EF] text-navy font-sans pb-24">
+    // Brand Colors from tailwind.config.js
+    const BRAND_TEAL = "#043E52";
+    const BRAND_ORANGE = "#ED6E3F";
 
-            {/* 1. HERO SECTION */}
-            <div className="relative min-h-[50vh] flex items-center pt-32 pb-20 overflow-hidden">
-                {/* Background Image with Overlay */}
+    const departments = [
+        {
+            icon: Headphones,
+            title: "Client Support",
+            desc: "Need help with an ongoing application or technical issues?",
+            email: "info@shinefiling.com",
+            iconBg: "bg-orange-50",
+            iconColor: "text-orange-500"
+        },
+        {
+            icon: FileText,
+            title: "Sales & Inquiries",
+            desc: "Interested in our services? Get custom quotes for your business.",
+            email: "info@shinefiling.com",
+            iconBg: "bg-orange-50",
+            iconColor: "text-orange-500"
+        },
+        {
+            icon: UserCheck,
+            title: "Expert Consultation",
+            desc: "Direct access to our senior Chartered Accountants.",
+            email: "info@shinefiling.com",
+            iconBg: "bg-orange-50",
+            iconColor: "text-orange-500"
+        }
+    ];
+
+    const steps = [
+        { id: '01', title: 'Pick a Service', desc: 'Choose from our range of 100+ business services.' },
+        { id: '02', title: 'Consult Expert', desc: 'Discuss your requirements with our verified CA.' },
+        { id: '03', title: 'Seamless Filing', desc: 'Sit back while we handle the documentation.' }
+    ];
+
+    return (
+        <div className="min-h-screen bg-white text-slate-900 font-sans pb-24 selection:bg-orange-100 selection:text-orange-900">
+            
+            {/* 1. ULTRA-PREMIUM HERO SECTION */}
+            <section className="relative pt-32 pb-64 overflow-hidden" style={{ backgroundColor: BRAND_TEAL }}>
                 <div className="absolute inset-0 z-0">
-                    <img
-                        src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2070"
-                        alt="Contact Us"
-                        className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-navy/95 via-navy/90 to-navy/80 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-navy to-transparent"></div>
+                    <div className="absolute top-0 right-0 w-[800px] h-[800px] opacity-10 rounded-full blur-[120px] -mr-96 -mt-96 animate-pulse" style={{ backgroundColor: BRAND_ORANGE }}></div>
+                    <div className="absolute bottom-0 left-0 w-[600px] h-[600px] opacity-5 rounded-full blur-[100px] -ml-44 -mb-44" style={{ backgroundColor: BRAND_ORANGE }}></div>
                 </div>
 
-                <div className="relative max-w-7xl mx-auto px-6 lg:px-8 text-center z-10">
+                <div className="relative max-w-7xl mx-auto px-6 text-center z-10">
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8 }}
                     >
-                        <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-bronze/20 text-bronze border border-bronze/30 rounded-full text-xs font-bold tracking-widest uppercase mb-6 backdrop-blur-sm">
-                            <MessageSquare size={12} className="fill-bronze" /> We're Here to Help
+                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 text-orange-200 text-[10px] font-bold uppercase tracking-[0.3em] mb-8 backdrop-blur-xl border border-white/10">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-ping"></span>
+                            Always Available
                         </span>
-                        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold leading-tight mb-8 text-white tracking-tight">
-                            Get in <span className="text-transparent bg-clip-text bg-gradient-to-r from-bronze to-yellow-200">Touch.</span>
+                        <h1 className="text-5xl md:text-6xl font-black text-white mb-8 leading-tight tracking-tight">
+                            Let's Build <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-orange-300 to-yellow-200">Great Things.</span>
                         </h1>
-                        <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto leading-relaxed mb-6 font-light">
-                            Have questions about your business registration or compliance? Our team of experts is ready to assist you.
+                        <p className="text-xl text-slate-300 max-w-3xl mx-auto font-light leading-relaxed mb-12">
+                            Skip the wait times. Connect directly with the human intelligence behind India's most trusted CA marketplace.
                         </p>
+                        
+                        <div className="flex flex-wrap justify-center gap-8 text-white/40 text-sm font-medium">
+                            <div className="flex items-center gap-2"><Globe size={16}/> Pan India Presence</div>
+                            <div className="flex items-center gap-2"><Shield size={16}/> Bank-Grade Security</div>
+                            <div className="flex items-center gap-2"><Clock size={16}/> 24h Response Goal</div>
+                        </div>
                     </motion.div>
                 </div>
-            </div>
+            </section>
 
-            {/* 2. CONTACT CARDS & FORM SECTION */}
-            <div className="max-w-7xl mx-auto px-6 -mt-20 relative z-20">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                    {/* INFO COLUMNS (1 Col) */}
-                    <div className="space-y-6">
-                        {/* Address Card */}
-                        <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 hover:-translate-y-2 transition-transform duration-300">
-                            <div className="w-12 h-12 rounded-xl bg-bronze/10 flex items-center justify-center text-bronze mb-4">
-                                <MapPin size={24} />
+            {/* 2. DEPARTMENT HUB */}
+            <div className="max-w-7xl mx-auto px-6 -mt-32 relative z-20">
+                <div className="grid md:grid-cols-3 gap-8">
+                    {departments.map((dept, i) => (
+                        <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 40 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: i * 0.1 }}
+                            className="bg-white p-10 rounded-[40px] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] border border-slate-100 hover:border-orange-500/30 transition-all group"
+                        >
+                            <div className={`w-16 h-16 rounded-2xl ${dept.iconBg} flex items-center justify-center ${dept.iconColor} mb-8 transition-transform group-hover:scale-110 group-hover:rotate-3`}>
+                                <dept.icon size={30} />
                             </div>
-                            <h3 className="text-xl font-bold text-navy mb-2">Our Office</h3>
-                            <p className="text-gray-500 leading-relaxed text-sm">
-                                123, Business Avenue, <br />
-                                Tech Park, Bangalore,<br />
-                                Karnataka - 560001
+                            <h3 className="text-2xl font-bold mb-4" style={{ color: BRAND_TEAL }}>{dept.title}</h3>
+                            <p className="text-slate-500 font-light mb-8 leading-relaxed">
+                                {dept.desc}
                             </p>
-                        </div>
-
-                        {/* Phone/Email Card */}
-                        <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 hover:-translate-y-2 transition-transform duration-300">
-                            <div className="w-12 h-12 rounded-xl bg-bronze/10 flex items-center justify-center text-bronze mb-4">
-                                <Phone size={24} />
-                            </div>
-                            <h3 className="text-xl font-bold text-navy mb-4">Contact Info</h3>
-                            <div className="space-y-3">
-                                <p className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                                    <Phone size={16} className="text-bronze" /> +91 7639227019
-                                </p>
-                                <p className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                                    <Mail size={16} className="text-bronze" /> support@shinefiling.com
-                                </p>
-                                <p className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                                    <Clock size={16} className="text-bronze" /> Mon - Sat, 9am - 7pm
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* CONTACT FORM (2 Cols) */}
-                    <div className="lg:col-span-2 bg-white rounded-3xl shadow-xl border border-gray-100 p-8 md:p-12">
-                        <h2 className="text-3xl font-bold text-navy mb-6">Send Us a Message</h2>
-                        <form className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">First Name</label>
-                                    <input type="text" className="w-full h-12 px-4 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-bronze focus:ring-0 transition-all outline-none text-navy font-medium" placeholder="John" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Last Name</label>
-                                    <input type="text" className="w-full h-12 px-4 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-bronze focus:ring-0 transition-all outline-none text-navy font-medium" placeholder="Doe" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Email Address</label>
-                                    <input type="email" className="w-full h-12 px-4 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-bronze focus:ring-0 transition-all outline-none text-navy font-medium" placeholder="john@example.com" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Phone Number</label>
-                                    <input type="text" className="w-full h-12 px-4 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-bronze focus:ring-0 transition-all outline-none text-navy font-medium" placeholder="+91 7639227019" />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Subject</label>
-                                <select className="w-full h-12 px-4 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-bronze focus:ring-0 transition-all outline-none text-navy font-medium appearance-none">
-                                    <option>General Inquiry</option>
-                                    <option>Business Registration</option>
-                                    <option>Tax Compliance</option>
-                                    <option>Partner With Us</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Message</label>
-                                <textarea className="w-full h-40 p-4 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-bronze focus:ring-0 transition-all outline-none text-navy font-medium resize-none" placeholder="How can we help you today?"></textarea>
-                            </div>
-
-                            <button type="button" className="w-full md:w-auto px-10 py-4 bg-navy text-white font-bold rounded-xl hover:bg-bronze transition-all flex items-center justify-center gap-2 shadow-lg shadow-navy/20">
-                                Send Message <Send size={18} />
-                            </button>
-                        </form>
-                    </div>
-
+                            <a 
+                                href={`mailto:${dept.email}`}
+                                className="inline-flex items-center gap-2 font-bold hover:gap-4 transition-all"
+                                style={{ color: BRAND_ORANGE }}
+                            >
+                                {dept.email} <ArrowRight size={18} />
+                            </a>
+                        </motion.div>
+                    ))}
                 </div>
             </div>
 
-            {/* 3. MAP SECTION (Optional Visual) */}
-            <div className="max-w-7xl mx-auto px-6 mt-20">
-                <div className="w-full h-80 bg-gray-200 rounded-3xl overflow-hidden shadow-inner grayscale hover:grayscale-0 transition-all duration-700">
-                    <iframe
-                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.598687258079!2d77.5945627!3d12.9715987!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bae1670c9b44e6d%3A0xf8dfc3e8517e4fe0!2sBengaluru%2C%20Karnataka!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin"
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        allowFullScreen=""
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                    ></iframe>
+            {/* 3. EXPERIENCE SECTION */}
+            <section className="py-32 px-6">
+                <div className="max-w-7xl mx-auto">
+                    <div className="grid lg:grid-cols-2 gap-24 items-center">
+                        <motion.div
+                            initial={{ opacity: 0, x: -50 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                        >
+                            <h2 className="text-4xl md:text-5xl font-extrabold mb-8 leading-tight" style={{ color: BRAND_TEAL }}>
+                                Our Support <br />
+                                <span style={{ color: BRAND_ORANGE }}>Architecture.</span>
+                            </h2>
+                            <p className="text-lg text-slate-500 font-light mb-12 leading-relaxed">
+                                We've engineered our communication channels to ensure you never have to repeat yourself. Every inquiry is assigned to a dedicated compliance manager.
+                            </p>
+                            
+                            <div className="space-y-10">
+                                {steps.map((step, i) => (
+                                    <div key={i} className="flex gap-6 group">
+                                        <div className="text-4xl font-black text-slate-100 transition-colors group-hover:text-orange-100">{step.id}</div>
+                                        <div>
+                                            <h4 className="text-lg font-bold mb-1" style={{ color: BRAND_TEAL }}>{step.title}</h4>
+                                            <p className="text-slate-500 text-sm font-light leading-relaxed">{step.desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            whileInView={{ opacity: 1, scale: 1 }}
+                            viewport={{ once: true }}
+                            className="rounded-[60px] p-12 md:p-20 text-white relative overflow-hidden"
+                            style={{ backgroundColor: BRAND_TEAL }}
+                        >
+                            <div className="absolute top-0 right-0 w-64 h-64 opacity-10 rounded-full blur-3xl" style={{ backgroundColor: BRAND_ORANGE }}></div>
+                            <MessageSquare className="mb-8" size={60} style={{ color: BRAND_ORANGE }} />
+                            <h3 className="text-3xl font-bold mb-6">Need Immediate Help?</h3>
+                            <p className="opacity-70 mb-12 text-lg font-light">
+                                Our hotlines are active 9 AM - 7 PM, Monday to Saturday. Talk to a real human, not a bot.
+                            </p>
+                            
+                            <div className="space-y-6">
+                                <div className="flex items-center gap-6 p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: BRAND_ORANGE }}>
+                                        <Phone size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs uppercase tracking-widest font-bold opacity-60">Standard Support</p>
+                                        <p className="text-xl font-bold">+91 7639227019</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-6 p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: BRAND_ORANGE }}>
+                                        <Mail size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs uppercase tracking-widest font-bold opacity-60">Main Inbox</p>
+                                        <p className="text-xl font-bold">info@shinefiling.com</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
                 </div>
-            </div>
+            </section>
+
+            {/* 4. FAQ MINI-GRID */}
+            <section className="py-24 bg-slate-50">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="text-center mb-20">
+                        <h2 className="text-3xl font-black mb-4" style={{ color: BRAND_TEAL }}>Common Inquiries</h2>
+                        <div className="w-20 h-1.5 mx-auto rounded-full" style={{ backgroundColor: BRAND_ORANGE }}></div>
+                    </div>
+                    
+                    <div className="grid md:grid-cols-2 gap-12">
+                        {[
+                            { q: "How soon will I get a response?", a: "Our average response time for email inquiries is under 4 business hours. Phone support is instant during operating hours." },
+                            { q: "Do you offer free consultations?", a: "Yes, our initial assessment for business registration and GST planning is completely free of charge." },
+                            { q: "How can I track my existing application?", a: "Simply login to your dashboard using the profile icon above to see live updates and status changes." },
+                            { q: "Is my data shared with anyone?", a: "Never. We use enterprise-grade encryption and strictly follow GDPR-aligned privacy practices." }
+                        ].map((faq, i) => (
+                            <div key={i} className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm">
+                                <h4 className="text-xl font-bold mb-4" style={{ color: BRAND_TEAL }}>{faq.q}</h4>
+                                <p className="text-slate-500 font-light leading-relaxed">{faq.a}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* 5. BOTTOM BRAND BANNER */}
+            <section className="pt-24 px-6 text-center">
+                <div className="max-w-2xl mx-auto">
+                    <CheckCircle className="mx-auto mb-6" size={40} style={{ color: BRAND_ORANGE }} />
+                    <h2 className="text-2xl font-bold mb-6 tracking-tight" style={{ color: BRAND_TEAL }}>Verified Professional Network</h2>
+                    <p className="text-slate-500 font-light mb-12 italic">"Connecting you with India's most talented CA freelancers, one conversation at a time."</p>
+                    <Link to="/services" className="inline-flex items-center gap-3 px-10 py-5 text-white font-bold rounded-2xl hover:brightness-110 transition-all group shadow-xl shadow-orange-500/10" style={{ backgroundColor: BRAND_ORANGE }}>
+                        Explore All Services <ArrowRight className="group-hover:translate-x-2 transition-transform" />
+                    </Link>
+                </div>
+            </section>
 
         </div>
     );

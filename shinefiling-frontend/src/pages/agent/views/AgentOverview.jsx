@@ -1,4 +1,4 @@
-﻿
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Wallet, TrendingUp, FileText, Users, Copy, Shield, ChevronRight } from 'lucide-react';
@@ -55,12 +55,19 @@ const AgentOverview = ({ stats, tasks, user, setActiveTab }) => {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div>
-                        <h3 className="text-2xl font-bold mb-2">Refer & Earn More</h3>
-                        <p className="text-white/80 max-w-md text-sm">Share your unique link. Earn 10% commission on every completed service.</p>
+                        <h3 className="text-2xl font-bold mb-2">Partner Benefits</h3>
+                        <p className="text-white/80 max-w-md text-sm">Earn commissions by referring clients or managing their applications. You receive 10-20% commission on every service completion.</p>
+                        <div className="flex gap-4 mt-4">
+                            <div className="bg-white/10 px-3 py-1.5 rounded-lg text-xs font-bold border border-white/10">10% Referral Bonus</div>
+                            <div className="bg-white/10 px-3 py-1.5 rounded-lg text-xs font-bold border border-white/10">Fixed Payouts Available</div>
+                        </div>
                     </div>
-                    <div className="bg-white/10 backdrop-blur-md p-2 rounded-xl flex items-center gap-2 border border-white/10 w-full md:w-auto">
-                        <code className="px-3 text-emerald-400 dark:text-white font-mono text-sm font-bold">{referralLink}</code>
-                        <button onClick={() => { navigator.clipboard.writeText(referralLink); alert("Copied!"); }} className="p-2 hover:bg-white/20 rounded-lg text-white transition-colors"><Copy size={18} /></button>
+                    <div className="flex flex-col items-end gap-2 w-full md:w-auto">
+                        <p className="text-[10px] font-bold text-white/60 uppercase self-start md:self-auto">Your Partner Code</p>
+                        <div className="bg-white/10 backdrop-blur-md p-2 rounded-xl flex items-center gap-2 border border-white/10 w-full md:w-auto">
+                            <code className="px-3 text-emerald-400 dark:text-white font-mono text-sm font-bold">{user?.id || 'SF-PARTNER'}</code>
+                            <button onClick={() => { navigator.clipboard.writeText(user?.id); alert("Copied Partner ID!"); }} className="p-2 hover:bg-white/20 rounded-lg text-white transition-colors"><Copy size={18} /></button>
+                        </div>
                     </div>
                 </div>
             </div>

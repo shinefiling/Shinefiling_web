@@ -1435,6 +1435,18 @@ export const getAgentApplications = async (email) => {
     return handleResponse(response);
 };
 
+export const createAgentClientApplication = async (agentId, applicationData) => {
+    const response = await fetch(`${BASE_URL}/agent/applications/create`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+            agentId,
+            ...applicationData
+        })
+    });
+    return handleResponse(response);
+};
+
 export const submitAgentKyc = async (userId, kycData) => {
     const response = await fetch(`${BASE_URL}/users/${userId}/kyc`, {
         method: 'POST',

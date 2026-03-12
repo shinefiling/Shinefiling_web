@@ -12,6 +12,7 @@ public class User {
     private Long id;
 
     private String fullName;
+    private String businessName; // For Agents / Partners
 
     @Column(unique = true)
     private String email;
@@ -48,4 +49,8 @@ public class User {
     private String kycDocuments; // JSON string of document URLs
 
     private String profileImage;
+
+    // Additional Profile Fields
+    private String city;
+    private String specialization; // e.g., CA, Lawyer, GST Expert, etc.
 }

@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    X, Mail, Lock, Smartphone, ChevronRight,
-    Shield, CheckCircle, ArrowRight, User,
-    AlertCircle, Eye, EyeOff, Building
+    X, Mail, Lock, Smartphone, ChevronRight, ChevronDown, 
+    Shield, CheckCircle, ArrowRight, User, Users,
+    AlertCircle, Eye, EyeOff, Building, Briefcase
 } from 'lucide-react';
 import axios from 'axios';
 import { loginUser, signupUser, verifyOtp, resendOtp, googleLogin, forgotPassword, resetPassword } from '../../api';
 import { useGoogleLogin } from '@react-oauth/google';
 
-const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) => {
+const AuthModal = ({ isOpen, onClose, initialMode = 'login', initialRole = null, onAuthSuccess }) => {
     const [mode, setMode] = useState(initialMode); // 'login' or 'signup'
     const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'otp'
     const [step, setStep] = useState('details'); // 'details' or 'otp' for signup
@@ -23,29 +23,45 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
         email: '',
         password: '',
         mobile: '',
-        role: 'USER', // Default to Business Owner
+        role: initialRole || 'USER',
+        businessName: '',
+        city: '',
+        specialization: '',
         newPassword: '',
         confirmPassword: ''
     });
+
+    const [signupStep, setSignupStep] = useState(initialRole ? 'details' : 'selection'); // Skip selection if initialRole is provided
 
     useEffect(() => {
         if (isOpen) {
             setMode(initialMode);
             setStep('details');
+            setSignupStep(initialRole ? 'details' : 'selection');
             setError('');
             setFormData({
                 fullName: '',
                 email: '',
                 password: '',
                 mobile: '',
-                role: 'USER'
+                role: initialRole || 'USER',
+                businessName: '',
+                city: '',
+                specialization: '',
+                newPassword: '',
+                confirmPassword: ''
             });
         }
-    }, [isOpen, initialMode]);
+    }, [isOpen, initialMode, initialRole]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
         setError('');
+    };
+
+    const handleSignupRoleSelect = (role) => {
+        setFormData({ ...formData, role });
+        setSignupStep('details');
     };
 
     const handleGoogleLogin = useGoogleLogin({
@@ -59,8 +75,13 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
 
                 const { email, name, sub: googleId } = userInfoResponse.data;
 
-                // 2. Send Profile to Backend
-                const data = await googleLogin({ email, name, googleId });
+                // 2. Send Profile to Backend - Pass the selected role
+                const data = await googleLogin({
+                    email,
+                    name,
+                    googleId,
+                    role: formData.role // Include selected role
+                });
 
                 // Robust User/Token Handling
                 const userObj = data.user || data;
@@ -81,9 +102,34 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
         onError: error => console.error('Login Failed:', error)
     });
 
+    const validateForm = () => {
+        if (mode === 'signup' && step === 'details') {
+            if (!formData.fullName.trim()) return "Full name is required";
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return "Invalid email format";
+            if (formData.password.length < 6) return "Password must be at least 6 characters";
+            if (formData.password !== formData.confirmPassword) return "Passwords do not match";
+            if (!/^\d{10}$/.test(formData.mobile.replace(/\D/g, ''))) return "Invalid mobile number (10 digits required)";
+            
+            if (formData.role === 'AGENT' && !formData.businessName.trim()) return "Agency/Business name is required";
+            if (formData.role === 'CA' && !formData.specialization) return "Please select your profession";
+            if ((formData.role === 'AGENT' || formData.role === 'CA') && !formData.city.trim()) return "City is required";
+        }
+        if (mode === 'login' && loginMethod === 'email') {
+            if (!formData.email || !formData.password) return "All fields are required";
+        }
+        return null;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+
+        const validationError = validateForm();
+        if (validationError) {
+            setError(validationError);
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -95,6 +141,11 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                     setLoading(false);
                 } else {
                     // Verify OTP and Finalize Signup
+                    if (!otp || otp.length < 6) {
+                        setError("Please enter a valid 6-digit OTP");
+                        setLoading(false);
+                        return;
+                    }
                     const data = await verifyOtp({ email: formData.email, otp, type: 'signup' });
 
                     const userObj = data.user || data;
@@ -107,18 +158,15 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                     onClose();
                 }
             } else if (mode === 'forgot') {
+                // ... same as before
                 if (step === 'email') {
-                    // Step 1: Send OTP to Email
                     await forgotPassword(formData.email);
                     setStep('otp');
                     setLoading(false);
                 } else if (step === 'otp') {
-                    // Step 2: Move to Reset Password form
-                    // We don't verify OTP here yet, we'll verify it during resetPassword call together
                     setStep('reset');
                     setLoading(false);
                 } else if (step === 'reset') {
-                    // Step 3: Final Reset
                     if (formData.newPassword !== formData.confirmPassword) {
                         throw new Error("Passwords do not match");
                     }
@@ -147,19 +195,15 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                     onAuthSuccess(finalUser);
                     onClose();
                 } else {
-                    // OTP Login Flow (simplified for now)
                     if (step === 'details') {
-                        // Send OTP logic would go here
                         setStep('otp');
                         setLoading(false);
-                    } else {
-                        // Verify OTP logic
                     }
                 }
             }
         } catch (err) {
             console.error("Auth Error:", err);
-            setError(err.response?.data?.message || 'Authentication failed');
+            setError(err.response?.data?.message || err.message || 'Authentication failed');
             setLoading(false);
         }
     };
@@ -241,13 +285,13 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                                 <div className="mb-6">
                                     <h3 className="text-2xl font-bold text-[#043E52] mb-1">
                                         {mode === 'login' ? 'Sign In' :
-                                            mode === 'signup' ? (step === 'details' ? 'Create Account' : 'Verify OTP') :
+                                            mode === 'signup' ? (signupStep === 'selection' ? 'Choose Account Type' : step === 'details' ? 'Create Account' : 'Verify OTP') :
                                                 (step === 'email' ? 'Forgot Password' : step === 'otp' ? 'Validate OTP' : 'New Password')}
                                     </h3>
-                                    <p className="text-slate-500 text-xs">
+                                    <p className="text-slate-500 text-xs font-semibold">
                                         {mode === 'login'
                                             ? 'Enter your credentials to access.'
-                                            : mode === 'signup' ? 'Fill in your details to get started.' : 'Follow steps to reset your password.'}
+                                            : mode === 'signup' ? (signupStep === 'selection' ? 'Select how you want to use ShineFiling' : 'Fill in your details to get started.') : 'Follow steps to reset your password.'}
                                     </p>
                                 </div>
 
@@ -257,238 +301,403 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', onAuthSuccess }) =>
                                     </div>
                                 )}
 
-                                <form onSubmit={handleSubmit} className="space-y-4">
-                                    {mode === 'signup' && step === 'details' && (
-                                        <>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-500 ml-1">Full Name</label>
-                                                <input
-                                                    type="text"
-                                                    name="fullName"
-                                                    value={formData.fullName}
-                                                    onChange={handleChange}
-                                                    className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                    required
-                                                />
-                                            </div>
-
-                                            {/* Role Selection */}
-                                            <div className="space-y-1 pt-0.5">
-                                                <label className="text-[10px] font-bold text-slate-500 ml-1">I am a</label>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    {[
-                                                        { id: 'USER', label: 'Business Owner', icon: User },
-                                                        { id: 'AGENT', label: 'Partner / Agent', icon: Shield }
-                                                    ].map((role) => (
-                                                        <button
-                                                            key={role.id}
-                                                            type="button"
-                                                            onClick={() => setFormData({ ...formData, role: role.id })}
-                                                            className={`relative flex flex-col items-center justify-center h-16 rounded-xl border-2 transition-all duration-300 ${formData.role === role.id
-                                                                ? 'bg-[#043E52]/5 border-[#043E52] text-[#043E52]'
-                                                                : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-slate-200 hover:bg-slate-100'
-                                                                }`}
-                                                        >
-                                                            <div className="mb-1">
-                                                                <role.icon size={20} strokeWidth={2} />
-                                                            </div>
-                                                            <span className="text-[9px] font-black uppercase tracking-tight">{role.label}</span>
-                                                            {formData.role === role.id && (
-                                                                <div className="absolute top-2 right-2 text-[#043E52]">
-                                                                    <CheckCircle size={14} fill="currentColor" stroke="white" strokeWidth={3} />
-                                                                </div>
-                                                            )}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                    {step === 'details' ? (
-                                        <>
-                                            {loginMethod === 'email' ? (
-                                                <>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-slate-500 ml-1">Email Address</label>
-                                                        <input
-                                                            type="email"
-                                                            name="email"
-                                                            autoComplete="username"
-                                                            value={formData.email}
-                                                            onChange={handleChange}
-                                                            className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                            required
-                                                        />
+                                {mode === 'signup' && signupStep === 'selection' ? (
+                                    <div className="space-y-4 py-4">
+                                        <div className="space-y-3">
+                                            {[
+                                                {
+                                                    id: 'AGENT',
+                                                    title: 'Business Agent / Partner',
+                                                    desc: 'Refer clients, manage services & earn commissions',
+                                                    icon: Users,
+                                                    color: 'text-emerald-600',
+                                                    bgColor: 'bg-emerald-50'
+                                                },
+                                                {
+                                                    id: 'CA',
+                                                    title: 'Professional / Freelancer',
+                                                    desc: 'Provide CA, Legal or Professional services as an expert',
+                                                    icon: Briefcase,
+                                                    color: 'text-indigo-600',
+                                                    bgColor: 'bg-indigo-50'
+                                                },
+                                                {
+                                                    id: 'USER',
+                                                    title: 'Individual / Company',
+                                                    desc: 'Register business, file taxes or manage compliance',
+                                                    icon: Building,
+                                                    color: 'text-blue-600',
+                                                    bgColor: 'bg-blue-50'
+                                                }
+                                            ].map((option) => (
+                                                <div 
+                                                    key={option.id}
+                                                    onClick={() => handleSignupRoleSelect(option.id)}
+                                                    className={`group relative p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer flex items-center gap-4 ${formData.role === option.id ? 'border-[#ED6E3F] bg-orange-50/30' : 'border-slate-50 hover:border-slate-200 bg-white'}`}
+                                                >
+                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${option.bgColor} ${option.color} group-hover:scale-110 transition-transform`}>
+                                                        <option.icon size={20} />
                                                     </div>
-
-                                                    <div className="space-y-1">
-                                                        <div className="flex justify-between items-center px-1">
-                                                            <label className="text-[10px] font-bold text-slate-500">Password</label>
-                                                            {mode === 'login' && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setMode('forgot');
-                                                                        setStep('email');
-                                                                    }}
-                                                                    className="text-[9px] font-bold text-[#ED6E3F] hover:underline uppercase"
-                                                                >
-                                                                    Forgot Password?
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        <div className="relative">
-                                                            <input
-                                                                type={showPassword ? "text" : "password"}
-                                                                name="password"
-                                                                autoComplete={mode === 'login' ? "current-password" : "new-password"}
-                                                                value={formData.password}
-                                                                onChange={handleChange}
-                                                                className="w-full h-10 border-2 border-slate-100 rounded-lg pl-3 pr-12 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                                required
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setShowPassword(!showPassword)}
-                                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-[#ED6E3F] uppercase tracking-wider hover:text-[#d55f34]"
-                                                            >
-                                                                {showPassword ? "HIDE" : "SHOW"}
-                                                            </button>
+                                                    <div className="flex-1">
+                                                        <h4 className="font-bold text-[#043E52] text-sm mb-0.5">{option.title}</h4>
+                                                        <p className="text-[10px] text-slate-500 font-medium leading-tight">{option.desc}</p>
+                                                    </div>
+                                                    <div className="shrink-0 flex items-center justify-center">
+                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${formData.role === option.id ? 'border-[#ED6E3F] bg-[#ED6E3F]' : 'border-slate-200'}`}>
+                                                            {formData.role === option.id && <div className="w-2 h-2 rounded-full bg-white" />}
                                                         </div>
                                                     </div>
-
-                                                    {mode === 'signup' && (
-                                                        <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-slate-500 ml-1">Mobile</label>
-                                                            <input
-                                                                type="tel"
-                                                                name="mobile"
-                                                                value={formData.mobile}
-                                                                onChange={handleChange}
-                                                                className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                                required
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-slate-500 ml-1">Mobile Number</label>
-                                                    <input
-                                                        type="tel"
-                                                        name="mobile"
-                                                        value={formData.mobile}
-                                                        onChange={handleChange}
-                                                        className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                        required
-                                                    />
                                                 </div>
-                                            )}
-                                        </>
-                                    ) : mode === 'forgot' && step === 'reset' ? (
-                                        <div className="space-y-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-500 ml-1">New Password</label>
-                                                <input
-                                                    type="password"
-                                                    name="newPassword"
-                                                    value={formData.newPassword}
-                                                    onChange={handleChange}
-                                                    className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-500 ml-1">Confirm New Password</label>
-                                                <input
-                                                    type="password"
-                                                    name="confirmPassword"
-                                                    value={formData.confirmPassword}
-                                                    onChange={handleChange}
-                                                    className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                    required
-                                                />
-                                            </div>
+                                            ))}
                                         </div>
-                                    ) : mode === 'forgot' && step === 'email' ? (
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 ml-1">Registered Email Address</label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleChange}
-                                                className="w-full h-10 border-2 border-slate-100 rounded-lg px-3 text-xs font-semibold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50 focus:bg-white"
-                                                required
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3 py-2">
-                                            <p className="text-xs text-center text-slate-600">Enter code sent to <span className="font-bold text-[#043E52]">{formData.email}</span></p>
-                                            <input
-                                                type="text"
-                                                maxLength="6"
-                                                value={otp}
-                                                onChange={(e) => setOtp(e.target.value)}
-                                                className="w-full h-12 bg-slate-50 border-2 border-slate-200 rounded-xl text-center text-xl font-bold focus:outline-none focus:border-[#ED6E3F] transition-colors tracking-[0.5em] text-[#043E52]"
-                                                placeholder="000000"
-                                            />
-                                        </div>
-                                    )}
 
-                                    <div className="pt-2">
-                                        <button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="w-full h-12 bg-[#ED6E3F] text-white rounded-xl font-bold text-base hover:bg-[#d55f34] transition-all transform active:scale-95 shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
-                                        >
-                                            {loading ? 'Processing...' : (
-                                                <>
-                                                    {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' :
-                                                        (step === 'email' ? 'Send OTP' : step === 'otp' ? 'Continue' : 'Update Password')}
-                                                    <ArrowRight size={18} />
-                                                </>
-                                            )}
-                                        </button>
+                                        <div className="text-center mt-8">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                Already have an account?
+                                                <button
+                                                    onClick={() => setMode('login')}
+                                                    className="text-[#ED6E3F] ml-2 font-black hover:underline tracking-tight"
+                                                >
+                                                    Sign In
+                                                </button>
+                                            </p>
+                                        </div>
                                     </div>
-                                </form>
-
-                                <div className="mt-6 flex flex-col gap-3">
-                                    {/* Google Login */}
-                                    {step === 'details' && (
-                                        <div className="relative">
-                                            <div className="absolute inset-0 flex items-center">
-                                                <div className="w-full border-t border-slate-100"></div>
+                                ) : (
+                                    <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+                                        {mode === 'signup' && (
+                                            <div className="mb-4 flex items-center justify-between bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                                                <div className="flex items-center gap-3 pl-2">
+                                                    <div className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center text-[#ED6E3F]">
+                                                        {formData.role === 'AGENT' ? <Users size={14} /> : formData.role === 'CA' ? <Briefcase size={14} /> : <Building size={14} />}
+                                                    </div>
+                                                    <span className="text-[9px] font-black uppercase text-[#043E52] tracking-widest">
+                                                        {formData.role === 'AGENT' ? 'Agent / Partner' : formData.role === 'CA' ? 'Freelancer' : 'Company'}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSignupStep('selection')}
+                                                    className="px-2.5 py-1 rounded-xl bg-white text-[8px] font-black text-[#ED6E3F] hover:bg-[#ED6E3F] hover:text-white transition-all uppercase tracking-widest border border-slate-50"
+                                                >
+                                                    Change
+                                                </button>
                                             </div>
-                                            <div className="relative flex justify-center text-[10px]">
-                                                <span className="px-2 bg-white text-slate-400 font-medium">Or continue with</span>
+                                        )}
+
+                                        {mode === 'signup' && step === 'details' && (
+                                             <div className="space-y-3">
+                                                 <div className="space-y-1">
+                                                     <label className="text-[10px] font-bold text-slate-500 ml-1">Full Name</label>
+                                                     <input
+                                                         type="text"
+                                                         name="fullName"
+                                                         value={formData.fullName}
+                                                         onChange={handleChange}
+                                                         className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                         placeholder="Enter your full name"
+                                                         required
+                                                     />
+                                                 </div>
+                                                 <div className="space-y-1">
+                                                     <label className="text-[10px] font-bold text-slate-500 ml-1">Email Address</label>
+                                                     <input
+                                                         type="email"
+                                                         name="email"
+                                                         value={formData.email}
+                                                         onChange={handleChange}
+                                                         className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                         placeholder="email@example.com"
+                                                         required
+                                                     />
+                                                 </div>
+                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                     <div className="space-y-1">
+                                                         <label className="text-[10px] font-bold text-slate-500 ml-1">Mobile Number</label>
+                                                         <input
+                                                             type="tel"
+                                                             name="mobile"
+                                                             value={formData.mobile}
+                                                             onChange={handleChange}
+                                                             className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                             placeholder="10-digit number"
+                                                             required
+                                                         />
+                                                     </div>
+                                                     <div className="space-y-1">
+                                                         <label className="text-[10px] font-bold text-slate-500 ml-1">Password</label>
+                                                         <input
+                                                             type="password"
+                                                             name="password"
+                                                             value={formData.password}
+                                                             onChange={handleChange}
+                                                             className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                             placeholder="••••••••"
+                                                             required
+                                                         />
+                                                     </div>
+                                                 </div>
+
+                                                 {formData.role === 'AGENT' && (
+                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                         <div className="space-y-1">
+                                                             <label className="text-[10px] font-bold text-slate-500 ml-1">Agency / Business Name</label>
+                                                             <input
+                                                                 type="text"
+                                                                 name="businessName"
+                                                                 value={formData.businessName}
+                                                                 onChange={handleChange}
+                                                                 className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                                 placeholder="e.g. Shine Services Agency"
+                                                                 required
+                                                             />
+                                                         </div>
+                                                         <div className="space-y-1">
+                                                             <label className="text-[10px] font-bold text-slate-500 ml-1">City of Operation</label>
+                                                             <input
+                                                                 type="text"
+                                                                 name="city"
+                                                                 value={formData.city}
+                                                                 onChange={handleChange}
+                                                                 className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                                 placeholder="e.g. Chennai"
+                                                                 required
+                                                             />
+                                                         </div>
+                                                     </div>
+                                                 )}
+
+                                                 {formData.role === 'CA' && (
+                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                         <div className="space-y-1">
+                                                             <label className="text-[10px] font-bold text-slate-500 ml-1">Your Profession</label>
+                                                             <div className="relative">
+                                                                 <select
+                                                                     name="specialization"
+                                                                     value={formData.specialization}
+                                                                     onChange={handleChange}
+                                                                     className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white appearance-none cursor-pointer"
+                                                                     required
+                                                                 >
+                                                                     <option value="">Select Profession</option>
+                                                                     <option value="CA">Chartered Accountant (CA)</option>
+                                                                     <option value="CS">Company Secretary (CS)</option>
+                                                                     <option value="LAWYER">Advocate / Lawyer</option>
+                                                                     <option value="TAX_CONSULTANT">Tax Consultant</option>
+                                                                     <option value="BUSINESS_CONSULTANT">Business Consultant</option>
+                                                                     <option value="OTHER">Other Professional</option>
+                                                                 </select>
+                                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                                                     <ChevronDown size={14} />
+                                                                 </div>
+                                                             </div>
+                                                         </div>
+                                                         <div className="space-y-1">
+                                                             <label className="text-[10px] font-bold text-slate-500 ml-1">City of Operation</label>
+                                                             <input
+                                                                 type="text"
+                                                                 name="city"
+                                                                 value={formData.city}
+                                                                 onChange={handleChange}
+                                                                 className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                                 placeholder="e.g. Chennai"
+                                                                 required
+                                                             />
+                                                         </div>
+                                                     </div>
+                                                 )}
+
+                                                 <div className="space-y-1">
+                                                     <label className="text-[10px] font-bold text-slate-500 ml-1">Confirm Password</label>
+                                                     <input
+                                                         type="password"
+                                                         name="confirmPassword"
+                                                         value={formData.confirmPassword}
+                                                         onChange={handleChange}
+                                                         className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                         placeholder="Re-enter password"
+                                                         required
+                                                     />
+                                                 </div>
+                                                 <div className="flex items-start gap-2 pt-1 px-1">
+                                                     <input type="checkbox" required className="mt-1 accent-[#ED6E3F]" id="terms" />
+                                                     <label htmlFor="terms" className="text-[10px] text-slate-500 leading-tight">
+                                                         I agree to the <span className="text-[#ED6E3F] font-bold">Terms of Service</span> and <span className="text-[#ED6E3F] font-bold">Privacy Policy</span>.
+                                                     </label>
+                                                 </div>
+                                             </div>
+                                         )}
+
+                                         {mode === 'login' && step === 'details' && (
+                                             <div className="space-y-4">
+                                                 <div className="space-y-1">
+                                                     <label className="text-[10px] font-bold text-slate-500 ml-1">Email Address</label>
+                                                     <input
+                                                         type="email"
+                                                         name="email"
+                                                         value={formData.email}
+                                                         onChange={handleChange}
+                                                         className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                         placeholder="email@example.com"
+                                                         required
+                                                     />
+                                                 </div>
+                                                 <div className="space-y-1">
+                                                     <div className="flex justify-between items-center px-1">
+                                                         <label className="text-[10px] font-bold text-slate-500">Password</label>
+                                                         <button type="button" onClick={() => { setMode('forgot'); setStep('email'); }} className="text-[9px] font-bold text-[#ED6E3F] hover:underline uppercase">Forgot?</button>
+                                                     </div>
+                                                     <div className="relative">
+                                                         <input
+                                                             type={showPassword ? "text" : "password"}
+                                                             name="password"
+                                                             value={formData.password}
+                                                             onChange={handleChange}
+                                                             className="w-full h-11 border-2 border-slate-50 rounded-xl pl-4 pr-12 text-xs font-bold text-[#043E52] focus:outline-none focus:border-[#ED6E3F] transition-all bg-slate-50/50 focus:bg-white placeholder:text-slate-400"
+                                                             placeholder="••••••••"
+                                                             required
+                                                         />
+                                                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#ED6E3F]">
+                                                             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                         </button>
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         )}
+
+                                         {step === 'otp' && (
+                                             <div className="space-y-6 py-4 text-center">
+                                                 <div>
+                                                     <p className="text-xs text-slate-600 font-medium">Verify your email</p>
+                                                     <p className="text-xs font-bold text-[#043E52]">{formData.email}</p>
+                                                 </div>
+                                                 <div className="relative">
+                                                     <input
+                                                         type="text"
+                                                         maxLength="6"
+                                                         value={otp}
+                                                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                                                         className="w-full h-16 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center text-3xl font-black focus:outline-none focus:border-[#ED6E3F] transition-all tracking-[0.2em] text-[#043E52]"
+                                                         placeholder="000000"
+                                                         required
+                                                         autoFocus
+                                                     />
+                                                 </div>
+                                                 <div className="flex flex-col gap-2">
+                                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Didn't receive code?</p>
+                                                     <button 
+                                                        type="button" 
+                                                        onClick={async () => {
+                                                            try {
+                                                                await resendOtp(formData.email);
+                                                                alert("New OTP sent!");
+                                                            } catch(err) {
+                                                                setError(err.message);
+                                                            }
+                                                        }}
+                                                        className="text-[10px] font-black text-[#ED6E3F] hover:underline uppercase tracking-widest"
+                                                     >
+                                                         Resend Now
+                                                     </button>
+                                                 </div>
+                                             </div>
+                                         )}
+
+                                         {mode === 'forgot' && step === 'email' && (
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-500 ml-1">Account Email</label>
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    value={formData.email}
+                                                    onChange={handleChange}
+                                                    className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold"
+                                                    placeholder="Enter your registered email"
+                                                    required
+                                                />
                                             </div>
-                                        </div>
-                                    )}
+                                         )}
 
-                                    {step === 'details' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleGoogleLogin()}
-                                            className="w-full h-10 border-2 border-slate-100 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-50 transition-all font-bold text-xs text-slate-600 bg-white"
-                                        >
-                                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
-                                            <span>Google</span>
-                                        </button>
-                                    )}
+                                         {(mode === 'forgot' || mode === 'reset') && step === 'reset' && (
+                                             <div className="space-y-4">
+                                                 <div className="space-y-1">
+                                                     <label className="text-[10px] font-bold text-slate-500 ml-1">New Password</label>
+                                                     <input
+                                                         type="password"
+                                                         name="newPassword"
+                                                         value={formData.newPassword}
+                                                         onChange={handleChange}
+                                                         className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold"
+                                                         required
+                                                     />
+                                                 </div>
+                                                 <div className="space-y-1">
+                                                     <label className="text-[10px] font-bold text-slate-500 ml-1">Confirm New Password</label>
+                                                     <input
+                                                         type="password"
+                                                         name="confirmPassword"
+                                                         value={formData.confirmPassword}
+                                                         onChange={handleChange}
+                                                         className="w-full h-11 border-2 border-slate-50 rounded-xl px-4 text-xs font-bold"
+                                                         required
+                                                     />
+                                                 </div>
+                                             </div>
+                                         )}
 
-                                    <div className="text-center mt-1">
-                                        <p className="text-[10px] text-slate-400 font-medium">
-                                            {mode === 'login' ? "New to ShineFiling?" : "Already member?"}
+                                        <div className="pt-2">
                                             <button
-                                                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-                                                className="text-[#ED6E3F] font-black ml-1 hover:underline uppercase tracking-wide"
+                                                type="submit"
+                                                disabled={loading}
+                                                className="w-full h-12 bg-[#ED6E3F] text-white rounded-2xl font-black text-sm hover:bg-[#d55f34] transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2"
                                             >
-                                                {mode === 'login' ? 'Create Account' : 'Login Here'}
+                                                {loading ? 'Processing...' : (
+                                                    <>
+                                                        {mode === 'login' ? 'Sign In' : mode === 'signup' ? (step === 'details' ? 'Create Account' : 'Verify OTP') :
+                                                            (step === 'email' ? 'Send OTP' : step === 'otp' ? 'Continue' : 'Update Password')}
+                                                        <ArrowRight size={18} strokeWidth={3} />
+                                                    </>
+                                                )}
                                             </button>
-                                        </p>
-                                    </div>
-                                </div>
+                                        </div>
+
+                                        <div className="mt-8 flex flex-col gap-4">
+                                            {step === 'details' && (
+                                                <>
+                                                    <div className="relative">
+                                                        <div className="absolute inset-0 flex items-center">
+                                                            <div className="w-full border-t border-slate-100"></div>
+                                                        </div>
+                                                        <div className="relative flex justify-center text-[10px]">
+                                                            <span className="px-2 bg-white text-slate-300 font-black uppercase tracking-widest">Or Secure Link</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleGoogleLogin()}
+                                                        className="w-full h-10 border-2 border-slate-50 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-50 transition-all font-bold text-xs text-slate-600 bg-white"
+                                                    >
+                                                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
+                                                        <span>Google Secure</span>
+                                                    </button>
+                                                </>
+                                            )}
+
+                                            <div className="text-center">
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                    {mode === 'login' ? "New to ShineFiling?" : "Already a member?"}
+                                                    <button
+                                                        onClick={mode === 'login' ? () => { setMode('signup'); setSignupStep('selection'); } : () => setMode('login')}
+                                                        className="text-[#ED6E3F] ml-2 hover:underline tracking-tight"
+                                                    >
+                                                        {mode === 'login' ? 'Sign Up' : 'Log In'}
+                                                    </button>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </form>
+                                )}
                             </div>
                         </div>
                     </div>

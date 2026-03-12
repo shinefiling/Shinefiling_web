@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { getDashboardPath } from '../utils/permissions';
 import { ChevronDown, Menu, X, Search, User, Bell, LogOut, ArrowRight, FileText, Settings } from 'lucide-react';
@@ -22,6 +22,7 @@ const Navbar = ({ isLoggedIn, onLogout, onLogin, user }) => {
     const [activeCategory, setActiveCategory] = useState('BUSINESS & TAX');
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authMode, setAuthMode] = useState('login');
+    const [initialRole, setInitialRole] = useState(null);
     const navigate = useNavigate();
 
     // Notifications State
@@ -36,10 +37,23 @@ const Navbar = ({ isLoggedIn, onLogout, onLogin, user }) => {
         if (searchParams.get('login') === 'true') {
             setShowAuthModal(true);
             setAuthMode('login');
-
-            // Clean URL
+            setInitialRole(null);
             const newParams = new URLSearchParams(searchParams);
             newParams.delete('login');
+            setSearchParams(newParams, { replace: true });
+        } else if (searchParams.get('signup') === 'true') {
+            setShowAuthModal(true);
+            setAuthMode('signup');
+            setInitialRole(null);
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('signup');
+            setSearchParams(newParams, { replace: true });
+        } else if (searchParams.get('agent') === 'true') {
+            setShowAuthModal(true);
+            setAuthMode('signup');
+            setInitialRole('AGENT');
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('agent');
             setSearchParams(newParams, { replace: true });
         }
     }, [searchParams, setSearchParams]);
@@ -451,17 +465,27 @@ const Navbar = ({ isLoggedIn, onLogout, onLogin, user }) => {
                         </div>
 
                         {/* RIGHT: AUTH & MOBILE TOGGLE */}
-                        <div className="w-auto xl:w-[280px] shrink-0 flex items-center justify-end gap-6">
+                        <div className="w-auto xl:w-[400px] shrink-0 flex items-center justify-end gap-6">
                             {!isLoggedIn ? (
                                 <div className="hidden xl:flex items-center gap-4">
                                     <button
-                                        onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}
+                                        onClick={() => { setAuthMode('signup'); setInitialRole('AGENT'); setShowAuthModal(true); }}
+                                        className={`text-[11px] font-black tracking-widest uppercase transition-all flex items-center gap-2 group/partner ${(scrolled || !isHome) ? 'text-[#ED6E3F]' : 'text-[#F9A65E]'}`}
+                                    >
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        BECOME PARTNER
+                                    </button>
+
+                                    <div className="h-4 w-[1px] bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+                                    <button
+                                        onClick={() => { setAuthMode('login'); setInitialRole(null); setShowAuthModal(true); }}
                                         className={`text-xs font-bold hover:text-[#F9A65E] tracking-wider uppercase transition-colors cursor-pointer ${(scrolled || !isHome) ? 'text-[#043E52]' : 'text-white'}`}
                                     >
                                         LOGIN
                                     </button>
                                     <button
-                                        onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }}
+                                        onClick={() => { setAuthMode('signup'); setInitialRole(null); setShowAuthModal(true); }}
                                         className="px-6 py-2.5 rounded-full bg-[#ED6E3F] text-white hover:bg-[#F9A65E] text-xs font-bold tracking-wider shadow-lg shadow-[#ED6E3F]/30 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
                                     >
                                         SIGN UP
@@ -682,20 +706,29 @@ const Navbar = ({ isLoggedIn, onLogout, onLogin, user }) => {
                                     </div>
                                 </div>
 
-                                {/* Auth Buttons */}
+                                {/* Auth Buttons for Mobile */}
                                 {!isLoggedIn ? (
-                                    <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <div className="space-y-3 pt-2">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={() => { setAuthMode('login'); setInitialRole(null); setShowAuthModal(true); setMobileMenuOpen(false); }}
+                                                className="flex items-center justify-center h-12 rounded-xl bg-white border border-slate-200 text-[#043E52] font-bold text-sm shadow-sm hover:border-[#ED6E3F] transition-all"
+                                            >
+                                                LOGIN
+                                            </button>
+                                            <button
+                                                onClick={() => { setAuthMode('signup'); setInitialRole(null); setShowAuthModal(true); setMobileMenuOpen(false); }}
+                                                className="flex items-center justify-center h-12 rounded-xl bg-gradient-to-r from-[#ED6E3F] to-[#F9A65E] text-white font-bold text-sm shadow-lg shadow-[#ED6E3F]/20 transition-all hover:shadow-[#ED6E3F]/30 hover:-translate-y-0.5"
+                                            >
+                                                SIGN UP
+                                            </button>
+                                        </div>
                                         <button
-                                            onClick={() => { setAuthMode('login'); setShowAuthModal(true); setMobileMenuOpen(false); }}
-                                            className="flex items-center justify-center h-12 rounded-xl bg-white border border-slate-200 text-[#043E52] font-bold text-sm shadow-sm hover:border-[#ED6E3F] transition-all cursor-pointer"
+                                            onClick={() => { setAuthMode('signup'); setInitialRole('AGENT'); setShowAuthModal(true); setMobileMenuOpen(false); }}
+                                            className="w-full flex items-center justify-center h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 font-extrabold text-xs tracking-widest shadow-sm hover:bg-emerald-500 hover:text-white transition-all uppercase gap-2"
                                         >
-                                            LOGIN
-                                        </button>
-                                        <button
-                                            onClick={() => { setAuthMode('signup'); setShowAuthModal(true); setMobileMenuOpen(false); }}
-                                            className="flex items-center justify-center h-12 rounded-xl bg-gradient-to-r from-[#ED6E3F] to-[#F9A65E] text-white font-bold text-sm shadow-lg shadow-[#ED6E3F]/20 transition-all hover:shadow-[#ED6E3F]/30 hover:-translate-y-0.5 cursor-pointer"
-                                        >
-                                            SIGN UP
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                            Become a Partner
                                         </button>
                                     </div>
                                 ) : (
@@ -726,8 +759,7 @@ const Navbar = ({ isLoggedIn, onLogout, onLogin, user }) => {
                                         </div>
                                     </div>
                                 )}
-
-                                {/* Services Accordion */}
+                                {/* Mobile Services List */}
                                 <div className="space-y-4 pt-2">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Our Solutions</label>
                                     <div className="space-y-2">
@@ -801,20 +833,21 @@ const Navbar = ({ isLoggedIn, onLogout, onLogin, user }) => {
                                         </Link>
                                     ))}
                                 </div>
-
                             </div>
                         </div>
                     </motion.div>
-                )
-                }
-            </AnimatePresence >
+                )}
+            </AnimatePresence>
 
             {/* Auth Modal Popup */}
             <AuthModal
                 isOpen={showAuthModal}
                 onClose={() => setShowAuthModal(false)}
                 initialMode={authMode}
-                onAuthSuccess={onLogin}
+                initialRole={initialRole}
+                onAuthSuccess={(userData) => {
+                    onLogin(userData);
+                }}
             />
         </>
     );

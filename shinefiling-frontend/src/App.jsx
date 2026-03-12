@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Home from './pages/HomePage';
 import Dashboard from './pages/DashboardPage';
@@ -10,6 +10,7 @@ import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import RefundPage from './pages/RefundPage';
 import AuthContext from './context/AuthContext';
+import DynamicSEOPage from './pages/DynamicSEOPage';
 
 // --- SEPARATE SERVICE PAGES ---
 
@@ -695,6 +696,22 @@ const App = () => {
               <Route path="/services/business-closure/fssai-cancellation/apply" element={<FssaiCancellationRegistration isLoggedIn={isLoggedIn} />} />
 
 
+
+              {/* --- SEO DYNAMIC ROUTES --- */}
+              {/* Dynamic Service-City Routes (Supports 10,000+ combinations) */}
+              <Route path="/:seoSlug" element={<DynamicSEOPage />} />
+              
+              {/* Priority Static SEO Routes */}
+              <Route path="/hire-ca-freelancer-india" element={<DynamicSEOPage />} />
+              <Route path="/gst-registration-india" element={<DynamicSEOPage />} />
+              <Route path="/income-tax-filing-india" element={<DynamicSEOPage />} />
+              <Route path="/company-registration-india" element={<DynamicSEOPage />} />
+              <Route path="/online-ca-consultation" element={<DynamicSEOPage />} />
+              <Route path="/freelance-ca-services" element={<DynamicSEOPage />} />
+              <Route path="/best-ca-freelancer-platform" element={<DynamicSEOPage />} />
+              <Route path="/startup-compliance-india" element={<DynamicSEOPage />} />
+              <Route path="/accounting-services-india" element={<DynamicSEOPage />} />
+              <Route path="/tax-consultant-india" element={<DynamicSEOPage />} />
 
               {/* Loader Demo */}
               <Route path="/loader-demo" element={<Loader fullScreen={false} />} />
