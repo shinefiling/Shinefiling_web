@@ -56,4 +56,9 @@ public class User {
     
     @Column(precision = 10, scale = 2)
     private java.math.BigDecimal walletBalance = java.math.BigDecimal.ZERO;
+
+    // Bank Details for CA/Agent Withdrawals
+    private String bankName;
+    private String accountNumber;
+    private String ifscCode;
 }
