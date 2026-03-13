@@ -47,6 +47,9 @@ public class AdminController {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private TransactionRepository transactionRepository;
+
     @jakarta.annotation.PostConstruct
     public void initData() {
         if (complianceRuleRepository.count() == 0) {
@@ -833,5 +836,73 @@ public class AdminController {
         }
 
         return ResponseEntity.ok(Map.of("message", "Partner KYC Rejected"));
+    }
+
+    // --- PAYOUT MANAGEMENT ---
+
+    @GetMapping("/payouts/pending")
+    public ResponseEntity<?> getPendingPayouts() {
+        return ResponseEntity.ok(transactionRepository.findByStatusAndReferenceType("PENDING", "WITHDRAWAL")
+                .stream().map(txn -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", txn.getId());
+                    map.put("amount", txn.getAmount());
+                    map.put("description", txn.getDescription());
+                    map.put("createdAt", txn.getCreatedAt());
+                    map.put("status", txn.getStatus());
+                    
+                    User u = txn.getUser();
+                    Map<String, Object> userMap = new HashMap<>();
+                    userMap.put("id", u.getId());
+                    userMap.put("fullName", u.getFullName());
+                    userMap.put("email", u.getEmail());
+                    userMap.put("mobile", u.getMobile());
+                    userMap.put("bankName", u.getBankName());
+                    userMap.put("accountNumber", u.getAccountNumber());
+                    userMap.put("ifscCode", u.getIfscCode());
+                    
+                    map.put("user", userMap);
+                    return map;
+                }).collect(Collectors.toList()));
+    }
+
+    @PostMapping("/payouts/{id}/approve")
+    public ResponseEntity<?> approvePayout(@PathVariable Long id) {
+        Transaction txn = transactionRepository.findById(id).orElse(null);
+        if (txn == null) return ResponseEntity.badRequest().body(Map.of("error", "Transaction not found"));
+        
+        txn.setStatus("SUCCESS");
+        transactionRepository.save(txn);
+        
+        // Notify user
+        notificationService.createNotification(txn.getUser(), "FINANCE", "Withdrawal Approved", 
+            "Your withdrawal of ₹" + txn.getAmount() + " has been approved and processed.", 
+            txn.getId().toString(), "PAYOUT_APPROVED");
+        
+        return ResponseEntity.ok(Map.of("message", "Payout approved"));
+    }
+
+    @PostMapping("/payouts/{id}/reject")
+    public ResponseEntity<?> rejectPayout(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+        Transaction txn = transactionRepository.findById(id).orElse(null);
+        if (txn == null) return ResponseEntity.badRequest().body(Map.of("error", "Transaction not found"));
+        
+        String reason = payload.getOrDefault("reason", "Rejected by Admin");
+        
+        txn.setStatus("FAILED");
+        txn.setDescription(txn.getDescription() + " (Rejected: " + reason + ")");
+        transactionRepository.save(txn);
+        
+        // Refund amount
+        User user = txn.getUser();
+        user.setWalletBalance(user.getWalletBalance().add(txn.getAmount()));
+        userRepository.save(user);
+        
+        // Notify user
+        notificationService.createNotification(user, "FINANCE", "Withdrawal Rejected", 
+            "Your withdrawal of ₹" + txn.getAmount() + " was rejected. Reason: " + reason, 
+            txn.getId().toString(), "PAYOUT_REJECTED");
+        
+        return ResponseEntity.ok(Map.of("message", "Payout rejected and funds refunded"));
     }
 }

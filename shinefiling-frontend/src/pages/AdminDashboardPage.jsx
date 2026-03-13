@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     LayoutDashboard, Users, FileText, CheckCircle, CreditCard, Settings, LogOut,
     Search, Bell, ChevronDown, Filter, Eye, DollarSign, AlertTriangle, TrendingUp, Menu, X,
@@ -161,6 +161,7 @@ const AdminDashboardPage = ({ onLogout, user }) => {
                     { label: 'Compliance Rules', id: 'ca_compliance', icon: Calendar },
                     { label: 'Service Config', id: 'ca_services', icon: Briefcase },
                     { label: 'Billing & Fees', id: 'ca_billing', icon: DollarSign },
+                    { label: 'Withdrawal Requests', id: 'ca_payouts', icon: IndianRupee },
                     { label: 'Roles & Access', id: 'ca_roles', icon: LockIcon },
                     { label: 'Audit Logs', id: 'ca_audit', icon: FileCheck },
                     { label: 'Power Actions', id: 'ca_power', icon: AlertTriangle }

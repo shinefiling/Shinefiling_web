@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Settings, Shield, FileText, Calendar, IndianRupee, Users, Bell,
@@ -10,7 +10,8 @@ import {
     getComplianceRules, saveComplianceRule, deleteComplianceRule,
     getServiceConfigs, saveServiceConfig,
     getBillingSettings,
-    getSystemRoles
+    getSystemRoles,
+    getPendingPayouts, approvePayout, rejectPayout
 } from '../../../../api';
 
 const CACRMControl = ({ defaultTab = 'compliance' }) => {
@@ -25,6 +26,7 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
     const [allowedServices, setAllowedServices] = useState([]);
     const [billingRules, setBillingRules] = useState({ minServiceFee: '', maxServiceFee: '', subscriptionPlans: [] });
     const [caRoles, setCaRoles] = useState([]);
+    const [pendingPayouts, setPendingPayouts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const [showModal, setShowModal] = useState(false);
@@ -87,6 +89,10 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
                     ]);
                 }
             }
+            if (activeTab === 'payouts') {
+                const data = await getPendingPayouts();
+                setPendingPayouts(data || []);
+            }
         } catch (error) {
             console.error("Failed to load data for tab:", activeTab, error);
         } finally {
@@ -108,6 +114,24 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
             await deleteComplianceRule(id);
             loadData();
         }
+    };
+
+    const handleApprovePayout = async (id) => {
+        if (window.confirm("Mark this payout as SUCCESS? Have you transferred the funds manually?")) {
+            try {
+                await approvePayout(id);
+                loadData();
+            } catch (e) { alert(e.message); }
+        }
+    };
+
+    const handleRejectPayout = async (id) => {
+        const reason = window.prompt("Reason for rejection:");
+        if (reason === null) return;
+        try {
+            await rejectPayout(id, reason);
+            loadData();
+        } catch (e) { alert(e.message); }
     };
 
     const renderComplianceTab = () => (
@@ -286,11 +310,82 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
         </div>
     );
 
+    const renderPayoutsTab = () => (
+        <div className="space-y-6 animate-in fade-in">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">CA Withdrawal Requests</h3>
+                    <p className="text-sm text-slate-500">Review and process pending payout requests from CAs.</p>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-700/50 text-slate-500">
+                        <tr>
+                            <th className="px-6 py-4 font-bold">CA Details</th>
+                            <th className="px-6 py-4 font-bold">Bank Info</th>
+                            <th className="px-6 py-4 font-bold">Amount</th>
+                            <th className="px-6 py-4 font-bold">Date</th>
+                            <th className="px-6 py-4 font-bold text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {pendingPayouts.length === 0 ? (
+                            <tr>
+                                <td colSpan="5" className="px-6 py-10 text-center text-slate-500 font-bold">No pending withdrawal requests.</td>
+                            </tr>
+                        ) : pendingPayouts.map(payout => (
+                            <tr key={payout.id}>
+                                <td className="px-6 py-4">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-slate-800 dark:text-white">{payout.user?.fullName}</span>
+                                        <span className="text-[10px] text-slate-400">{payout.user?.email}</span>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex flex-col text-xs">
+                                        <span className="font-bold text-slate-700 dark:text-slate-200">{payout.user?.bankName}</span>
+                                        <span className="text-slate-500">A/C: {payout.user?.accountNumber}</span>
+                                        <span className="text-slate-400 text-[10px]">IFSC: {payout.user?.ifscCode}</span>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <span className="font-bold text-emerald-600">₹{payout.amount}</span>
+                                </td>
+                                <td className="px-6 py-4 text-slate-500 text-xs text-nowrap">
+                                    {new Date(payout.createdAt).toLocaleString()}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex justify-end gap-2">
+                                        <button 
+                                            onClick={() => handleApprovePayout(payout.id)}
+                                            className="px-3 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-lg shadow-sm hover:bg-emerald-600 transition"
+                                        >
+                                            Approve
+                                        </button>
+                                        <button 
+                                            onClick={() => handleRejectPayout(payout.id)}
+                                            className="px-3 py-1.5 bg-rose-50 text-rose-500 text-[10px] font-bold border border-rose-100 rounded-lg hover:bg-rose-500 hover:text-white transition"
+                                        >
+                                            Reject
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     const TAB_NAMES = {
         compliance: 'Compliance & Due Dates',
         services: 'Service Configuration',
         billing: 'Billing & Fees',
         roles: 'Roles & Access',
+        payouts: 'Withdrawal Requests',
         audit: 'System Audit Logs',
         power: 'Power Actions'
     };
@@ -313,6 +408,7 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
                 {activeTab === 'services' && (isLoading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-orange-500" /></div> : renderServicesTab())}
                 {activeTab === 'billing' && (isLoading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-orange-500" /></div> : renderBillingTab())}
                 {activeTab === 'roles' && (isLoading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-orange-500" /></div> : renderRolesTab())}
+                {activeTab === 'payouts' && (isLoading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-orange-500" /></div> : renderPayoutsTab())}
                 {activeTab === 'audit' && (
                     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <div className="p-4 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">

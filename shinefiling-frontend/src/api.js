@@ -2624,3 +2624,28 @@ export const getFullAnalytics = async () => {
     }
     return null;
 };
+
+// --- ADMIN PAYOUT MANAGEMENT ---
+export const getPendingPayouts = async () => {
+    const response = await fetch(`${BASE_URL}/admin/payouts/pending`, {
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+export const approvePayout = async (id) => {
+    const response = await fetch(`${BASE_URL}/admin/payouts/${id}/approve`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+export const rejectPayout = async (id, reason) => {
+    const response = await fetch(`${BASE_URL}/admin/payouts/${id}/reject`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ reason }),
+    });
+    return handleResponse(response);
+};

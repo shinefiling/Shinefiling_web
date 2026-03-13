@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, Shield, Settings, Activity, Save, Trash2, Edit2, CheckCircle, XCircle,
@@ -140,6 +140,7 @@ const MasterDashboard = ({ activeTab, onNavigate, user }) => {
             case 'ca_compliance': return <CACRMControl defaultTab="compliance" />;
             case 'ca_services': return <CACRMControl defaultTab="services" />;
             case 'ca_billing': return <CACRMControl defaultTab="billing" />;
+            case 'ca_payouts': return <CACRMControl defaultTab="payouts" />;
             case 'ca_roles': return <CACRMControl defaultTab="roles" />;
             case 'ca_audit': return <CACRMControl defaultTab="audit" />;
             case 'ca_power': return <CACRMControl defaultTab="power" />;
