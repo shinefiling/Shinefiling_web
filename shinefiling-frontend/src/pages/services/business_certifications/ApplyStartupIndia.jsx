@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ArrowLeft, Upload, CheckCircle, AlertCircle, FileText, ChevronRight,
@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { submitStartupIndia } from '../../../api';
 import { uploadFile } from '../../../utils/uploadFile';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 // Pricing Configuration
 const pricing = {
@@ -25,6 +26,7 @@ const ApplyStartupIndia = ({ isLoggedIn, isModal = false, onClose, planProp }) =
     const [plan, setPlan] = useState(initialPlan);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [formData, setFormData] = useState({
         startupName: '',
@@ -130,68 +132,90 @@ const ApplyStartupIndia = ({ isLoggedIn, isModal = false, onClose, planProp }) =
     };
 
     const handleSubmit = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const uploadedDocsList = [];
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email || 'guest@example.com';
+        const phone = userObj?.phone || formData.mobile || '';
 
-            // Upload Documents
-            const uploadPromises = Object.entries(documents).map(async ([key, file]) => {
-                if (file) {
-                    try {
-                        const uploadRes = await uploadFile(file, 'startup-india');
-                        return {
-                            id: key,
-                            filename: uploadRes.originalName || file.name,
-                            fileUrl: uploadRes.fileUrl,
-                            type: key
-                        };
-                    } catch (e) {
-                        console.error(`Failed to upload ${key}`, e);
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${billDetails.planName} - Startup India Registration`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setLoading(true);
+                setError(null);
+                try {
+                    const uploadedDocsList = [];
+
+                    // Upload Documents
+                    const uploadPromises = Object.entries(documents).map(async ([key, file]) => {
+                        if (file) {
+                            try {
+                                const uploadRes = await uploadFile(file, 'startup-india');
+                                return {
+                                    id: key,
+                                    filename: uploadRes.originalName || file.name,
+                                    fileUrl: uploadRes.fileUrl,
+                                    type: key
+                                };
+                            } catch (e) {
+                                console.error(`Failed to upload ${key}`, e);
+                                return null;
+                            }
+                        }
                         return null;
+                    });
+
+                    const uploadedResults = await Promise.all(uploadPromises);
+                    uploadedResults.forEach(doc => {
+                        if (doc) uploadedDocsList.push(doc);
+                    });
+
+                    // Prepare Payload
+                    const submissionPayload = {
+                        submissionId: `STARTUP-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: plan,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: {
+                            ...formData,
+                            entityType: "Private Limited/LLP", // Assuming mostly these
+                            selectedPlan: billDetails.planName
+                        },
+                        documents: uploadedDocsList,
+                        createdAt: new Date().toISOString(),
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    // API Call
+                    await submitStartupIndia(submissionPayload);
+
+                    // Redirect
+                    if (isModal) {
+                        onClose();
+                        navigate('/dashboard?tab=orders');
+                    } else {
+                        navigate('/dashboard?tab=orders');
                     }
+
+                } catch (err) {
+                    console.error("Submission Error", err);
+                    setError(err.message || "Failed to submit application. Please try again.");
+                } finally {
+                    setLoading(false);
                 }
-                return null;
-            });
-
-            const uploadedResults = await Promise.all(uploadPromises);
-            uploadedResults.forEach(doc => {
-                if (doc) uploadedDocsList.push(doc);
-            });
-
-            // Prepare Payload
-            const submissionPayload = {
-                submissionId: `STARTUP-${Date.now()}`,
-                userEmail: formData.email,
-                plan: plan,
-                amountPaid: billDetails.total,
-                status: "INITIATED",
-                formData: {
-                    ...formData,
-                    entityType: "Private Limited/LLP", // Assuming mostly these
-                    selectedPlan: billDetails.planName
-                },
-                documents: uploadedDocsList,
-                createdAt: new Date().toISOString()
-            };
-
-            // API Call
-            await submitStartupIndia(submissionPayload);
-
-            // Redirect
-            if (isModal) {
-                onClose();
-                navigate('/dashboard?tab=orders');
-            } else {
-                navigate('/dashboard?tab=orders');
             }
-
-        } catch (err) {
-            console.error("Submission Error", err);
-            setError(err.message || "Failed to submit application. Please try again.");
-        } finally {
-            setLoading(false);
-        }
+        });
     };
 
     const steps = ['Plan Selection', 'Entity Details', 'Documents', 'Review', 'Payment'];
@@ -389,9 +413,9 @@ const ApplyStartupIndia = ({ isLoggedIn, isModal = false, onClose, planProp }) =
                             <div className="border-t pt-2 mt-2 flex justify-between items-end"><span className="text-gray-500 font-bold">Total</span><span className="text-3xl font-bold text-navy">₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
 
-                        <button onClick={handleSubmit} disabled={loading} className="w-full py-4 bg-gradient-to-r from-bronze to-yellow-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
-                            {loading ? 'Processing...' : `Pay ₹${billDetails.total} & Submit`}
-                            {!loading && <Lock size={18} />}
+                        <button onClick={handleSubmit} disabled={loading || isPaymentProcessing} className="w-full py-4 bg-gradient-to-r from-bronze to-yellow-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
+                            {loading || isPaymentProcessing ? 'Authorizing Payment...' : `Pay ₹${billDetails.total} & Submit`}
+                            {!(loading || isPaymentProcessing) && <Lock size={18} />}
                         </button>
                     </div>
                 );

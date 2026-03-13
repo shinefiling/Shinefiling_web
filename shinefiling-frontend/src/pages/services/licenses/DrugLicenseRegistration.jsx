@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,6 +6,7 @@ import {
     ArrowLeft, ArrowRight, IndianRupee, MapPin, Pill, Thermometer, AlertTriangle, X, Shield, Activity, Landmark
 } from 'lucide-react';
 import { uploadFile, submitDrugLicense } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const DrugLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -16,6 +17,8 @@ const DrugLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
     const [isSuccess, setIsSuccess] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [errors, setErrors] = useState({});
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [formData, setFormData] = useState({
         businessName: '',
@@ -114,38 +117,60 @@ const DrugLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || "guest@example.com";
+        const phone = userObj?.phone || "9999999999";
 
-            const finalPayload = {
-                submissionId: `DRUG-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                plan: formData.licenseType,
-                amountPaid: billDetails.total,
-                businessName: formData.businessName,
-                state: formData.state,
-                licenseType: formData.licenseType,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: {
-                    ...formData,
-                    areaInSqMeters: parseFloat(formData.areaInSqMeters) || 0
-                },
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${currentPricing.title} - Drug License`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitDrugLicense(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `DRUG-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: formData.licenseType,
+                        amountPaid: billDetails.total,
+                        businessName: formData.businessName,
+                        state: formData.state,
+                        licenseType: formData.licenseType,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: {
+                            ...formData,
+                            areaInSqMeters: parseFloat(formData.areaInSqMeters) || 0
+                        },
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitDrugLicense(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -296,13 +321,17 @@ const DrugLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
                                 className="w-full py-4 bg-navy text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-black transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-3 group"
                             >
-                                {isSubmitting ? 'Verifying...' : 'Complete Payment'}
-                                {!isSubmitting && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                                {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Complete Payment'}
+                                {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
                             </button>
                         </div>
                     </motion.div>

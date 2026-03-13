@@ -1,13 +1,15 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, Upload, ArrowLeft, ArrowRight, IndianRupee, Building, FileText, AlertCircle, Shield, X
 } from 'lucide-react';
 import { uploadFile, submitCompanyLlpCorrection } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const CompanyLLPDetailCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [currentStep, setCurrentStep] = useState(1);
     const [plan, setPlan] = useState(planProp || 'office_shift');
@@ -130,32 +132,54 @@ const CompanyLLPDetailCorrectionRegistration = ({ isLoggedIn, isModal = false, o
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail;
+        const phone = userObj?.userPhone || formData.userPhone || '';
 
-            const finalPayload = {
-                submissionId: `ROC-C-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail,
-                plan: plan,
-                amountPaid: billDetails.total,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: formData,
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for Company/LLP Detail Correction - ${pricing[plan].title}`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitCompanyLlpCorrection(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error(error);
-            alert("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `ROC-C-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: plan,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitCompanyLlpCorrection(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    console.error(error);
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -305,9 +329,9 @@ const CompanyLLPDetailCorrectionRegistration = ({ isLoggedIn, isModal = false, o
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
 
-                        <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2">
-                            {isSubmitting ? 'Processing...' : 'Pay & File Correction'}
-                            {!isSubmitting && <ArrowRight size={18} />}
+                        <button onClick={submitApplication} disabled={isSubmitting || isPaymentProcessing} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & File Correction'}
+                            {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
                     </div>
                 );

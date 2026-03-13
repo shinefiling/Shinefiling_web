@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, CreditCard, FileText,
@@ -11,6 +11,8 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import { submitTaxAudit } from '../../../api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRazorpay } from '../../../hooks/useRazorpay';
+import { useMemo } from 'react';
 
 const TaxAuditRegistration = ({ initialPlan = 'standard', onClose }) => {
     const { state } = useLocation();
@@ -27,11 +29,31 @@ const TaxAuditRegistration = ({ initialPlan = 'standard', onClose }) => {
         taxpayerType: 'Business',
         turnoverAmount: '',
         natureOfBusiness: '',
-        gstRegistered: 'Yes'
+        gstRegistered: 'Yes',
+        userEmail: user?.email || '',
+        userPhone: user?.mobile || ''
     });
+
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [files, setFiles] = useState({});
     const [uploadProgress, setUploadProgress] = useState({});
+
+    const plansData = {
+        basic: { price: 4999, title: 'Turnover < 2Cr' },
+        standard: { price: 9999, title: 'Turnover 2-5Cr' },
+        premium: { price: 14999, title: 'Turnover 5Cr+' }
+    };
+
+    const billDetails = useMemo(() => {
+        const p = plansData[selectedPlan] || plansData.standard;
+        const basePrice = p.price;
+        const platformFee = Math.round(basePrice * 0.03);
+        const tax = Math.round(basePrice * 0.03);
+        const gst = Math.round(basePrice * 0.09);
+        const total = basePrice + platformFee + tax + gst;
+        return { basePrice, platformFee, tax, gst, total };
+    }, [selectedPlan]);
 
     const steps = [
         { id: 1, title: 'Tier', icon: Zap },
@@ -54,20 +76,44 @@ const TaxAuditRegistration = ({ initialPlan = 'standard', onClose }) => {
     };
 
     const handleSubmit = async () => {
-        const payload = {
-            submissionId: `AUDIT-${Date.now()}`,
-            plan: selectedPlan,
-            formData: formData,
-            status: "PAYMENT_SUCCESSFUL"
-        };
+        const email = user?.email || formData.userEmail;
+        const phone = user?.mobile || formData.userPhone;
 
-        try {
-            await submitTaxAudit(payload);
-            setCurrentStep(6);
-        } catch (error) {
-            console.error("Submission failed", error);
-            alert("Transmission break. Please reconnect and retry.");
-        }
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plansData[selectedPlan]?.title} - Tax Audit`,
+            prefill: {
+                name: formData.businessName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                const payload = {
+                    submissionId: `AUDIT-${Date.now()}`,
+                    plan: selectedPlan,
+                    formData: {
+                        ...formData,
+                        userEmail: email,
+                        userPhone: phone
+                    },
+                    status: "PAYMENT_SUCCESSFUL",
+                    paymentDetails: {
+                        ...billDetails,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_signature: response.razorpay_signature
+                    }
+                };
+
+                try {
+                    await submitTaxAudit(payload);
+                    setCurrentStep(6);
+                } catch (error) {
+                    console.error("Submission failed", error);
+                    alert("Transmission break. Please reconnect and retry.");
+                }
+            }
+        });
     };
 
     const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 5));
@@ -157,11 +203,37 @@ const TaxAuditRegistration = ({ initialPlan = 'standard', onClose }) => {
 
                     {/* STEP 2: PROFILE */}
                     {currentStep === 2 && (
-                        <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-10 text-left">
-                            <h3 className="text-4xl font-black italic tracking-tighter uppercase border-l-8 border-red-500 pl-6">Business Architecture</h3>
+                        <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-10 text-left text-left">
+                            <h3 className="text-4xl font-black italic tracking-tighter uppercase border-l-8 border-red-500 pl-6 text-left">Business Architecture</h3>
 
-                            <div className="grid md:grid-cols-2 gap-8 text-left">
-                                <div className="space-y-3 md:col-span-2 text-left text-left">
+                            <div className="grid md:grid-cols-2 gap-8 text-left text-left">
+                                {(!user) && (
+                                    <>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 italic text-left">Email Address</label>
+                                            <input
+                                                name="userEmail"
+                                                value={formData.userEmail}
+                                                onChange={handleInputChange}
+                                                type="email"
+                                                placeholder="contact@company.com"
+                                                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black focus:border-red-500 transition-all text-lg italic text-left"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 italic text-left">Phone Number</label>
+                                            <input
+                                                name="userPhone"
+                                                value={formData.userPhone}
+                                                onChange={handleInputChange}
+                                                type="tel"
+                                                placeholder="9876543210"
+                                                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black focus:border-red-500 transition-all text-lg italic text-left"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                                <div className="space-y-3 md:col-span-2 text-left text-left text-left text-left">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 italic">Legal Entity Name</label>
                                     <div className="relative text-left">
                                         <Building className="absolute left-6 top-1/2 -translate-y-1/2 text-red-500" size={24} />
@@ -320,8 +392,8 @@ const TaxAuditRegistration = ({ initialPlan = 'standard', onClose }) => {
                                     <div className="bg-white/10 backdrop-blur-3xl rounded-[40px] p-10 flex flex-col justify-center border border-white/10 text-left">
                                         <p className="text-red-400 text-[10px] font-black uppercase tracking-widest mb-2 italic">Audit Fee (Statutory)</p>
                                         <div className="flex items-baseline gap-2 mb-6">
-                                            <span className="text-7xl font-black italic tracking-tighter tracking-tighter">₹{(selectedPlan === 'basic' ? 4999 : selectedPlan === 'standard' ? 9999 : 14999).toLocaleString()}</span>
-                                            <span className="text-red-300 font-bold text-xl uppercase tracking-tighter italic">+ GST</span>
+                                            <span className="text-7xl font-black italic tracking-tighter tracking-tighter">₹{billDetails.total.toLocaleString()}</span>
+                                            <span className="text-red-300 font-bold text-xl uppercase tracking-tighter italic">Inc. Tax</span>
                                         </div>
                                         <div className="w-full h-px bg-white/20 mb-6"></div>
                                         <p className="text-[10px] font-medium text-white/60 uppercase tracking-widest italic text-left">Includes digital signing & portal filing.</p>
@@ -360,9 +432,10 @@ const TaxAuditRegistration = ({ initialPlan = 'standard', onClose }) => {
 
                     <button
                         onClick={currentStep === 5 ? handleSubmit : nextStep}
+                        disabled={isPaymentProcessing}
                         className="flex items-center gap-6 px-12 py-6 bg-navy text-white font-black text-xs uppercase tracking-[0.5em] rounded-[2rem] hover:bg-red-600 transition-all shadow-2xl group"
                     >
-                        {currentStep === 5 ? 'Authorize & Initialize' : 'Next Phase'} <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
+                        {isPaymentProcessing ? 'Authorizing...' : currentStep === 5 ? 'Authorize & Initialize' : 'Next Phase'} <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
                     </button>
                 </div>
             )}

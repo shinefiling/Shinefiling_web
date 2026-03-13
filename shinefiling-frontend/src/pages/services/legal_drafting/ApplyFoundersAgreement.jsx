@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ArrowLeft, Upload, CheckCircle, AlertCircle, FileText, ChevronRight, ArrowRight,
@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { submitFoundersAgreement } from '../../../api';
 import { uploadFile } from '../../../utils/uploadFile';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 // Pricing Configuration
 const pricing = {
@@ -124,68 +125,91 @@ const ApplyFoundersAgreement = ({ isLoggedIn, isModal = false, onClose, planProp
         setStep(prev => prev - 1);
     };
 
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
+
     const handleSubmit = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const uploadedDocsList = [];
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email;
+        const phone = userObj?.mobile || formData.mobile;
 
-            // Upload Documents
-            const uploadPromises = Object.entries(documents).map(async ([key, file]) => {
-                if (file) {
-                    try {
-                        const uploadRes = await uploadFile(file, 'founders-agreement');
-                        return {
-                            id: key,
-                            filename: uploadRes.originalName || file.name,
-                            fileUrl: uploadRes.fileUrl,
-                            type: key
-                        };
-                    } catch (e) {
-                        console.error(`Failed to upload ${key}`, e);
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${billDetails.planName} - Founders Agreement Drafting`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setLoading(true);
+                setError(null);
+                try {
+                    const uploadedDocsList = [];
+
+                    // Upload Documents
+                    const uploadPromises = Object.entries(documents).map(async ([key, file]) => {
+                        if (file) {
+                            try {
+                                const uploadRes = await uploadFile(file, 'founders-agreement');
+                                return {
+                                    id: key,
+                                    filename: uploadRes.originalName || file.name,
+                                    fileUrl: uploadRes.fileUrl,
+                                    type: key
+                                };
+                            } catch (e) {
+                                console.error(`Failed to upload ${key}`, e);
+                                return null;
+                            }
+                        }
                         return null;
+                    });
+
+                    const uploadedResults = await Promise.all(uploadPromises);
+                    uploadedResults.forEach(doc => {
+                        if (doc) uploadedDocsList.push(doc);
+                    });
+
+                    // Prepare Payload
+                    const finalPayload = {
+                        submissionId: `FOUNDER-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: plan,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: {
+                            ...formData,
+                            selectedPlan: billDetails.planName
+                        },
+                        documents: uploadedDocsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    // API Call
+                    await submitFoundersAgreement(finalPayload);
+
+                    // Redirect
+                    if (isModal) {
+                        onClose();
+                        navigate('/dashboard?tab=orders');
+                    } else {
+                        navigate('/dashboard?tab=orders');
                     }
+
+                } catch (err) {
+                    console.error("Submission Error", err);
+                    setError(err.message || "Failed to submit application. Please try again.");
+                } finally {
+                    setLoading(false);
                 }
-                return null;
-            });
-
-            const uploadedResults = await Promise.all(uploadPromises);
-            uploadedResults.forEach(doc => {
-                if (doc) uploadedDocsList.push(doc);
-            });
-
-            // Prepare Payload
-            const finalPayload = {
-                submissionId: `FOUNDER-${Date.now()}`,
-                userEmail: formData.email,
-                plan: plan,
-                amountPaid: billDetails.total,
-                status: "INITIATED",
-                formData: {
-                    ...formData,
-                    selectedPlan: billDetails.planName
-                },
-                documents: uploadedDocsList,
-                automationQueue: []
-            };
-
-            // API Call
-            await submitFoundersAgreement(finalPayload);
-
-            // Redirect
-            if (isModal) {
-                onClose();
-                navigate('/dashboard?tab=orders');
-            } else {
-                navigate('/dashboard?tab=orders');
             }
-
-        } catch (err) {
-            console.error("Submission Error", err);
-            setError(err.message || "Failed to submit application. Please try again.");
-        } finally {
-            setLoading(false);
-        }
+        });
     };
 
     const steps = ['Select Plan', 'Founder Details', 'Documents', 'Review', 'Payment'];
@@ -340,8 +364,8 @@ const ApplyFoundersAgreement = ({ isLoggedIn, isModal = false, onClose, planProp
 
                         <div className="grid grid-cols-2 gap-4">
                             <button onClick={() => setStep(step - 1)} className="py-3 border border-gray-200 rounded-xl font-bold text-gray-500 hover:bg-gray-50">Back</button>
-                            <button onClick={handleSubmit} disabled={loading || !isTermsAccepted} className="py-3 bg-[#043E52] text-white rounded-xl font-bold hover:bg-black transition disabled:opacity-50">
-                                {loading ? 'Processing...' : 'Pay & Submit'}
+                            <button onClick={handleSubmit} disabled={loading || isPaymentProcessing || !isTermsAccepted} className="py-3 bg-[#043E52] text-white rounded-xl font-bold hover:bg-black transition disabled:opacity-50">
+                                {loading || isPaymentProcessing ? 'Processing...' : 'Pay & Submit'}
                             </button>
                         </div>
                     </div>
@@ -363,9 +387,9 @@ const ApplyFoundersAgreement = ({ isLoggedIn, isModal = false, onClose, planProp
                             <div className="border-t pt-2 mt-2 flex justify-between items-end"><span className="text-gray-500 font-bold">Total</span><span className="text-3xl font-bold text-navy">₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
 
-                        <button onClick={handleSubmit} disabled={loading} className="w-full py-4 bg-gradient-to-r from-bronze to-yellow-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
-                            {loading ? 'Processing...' : `Pay ₹${billDetails.total} & Submit`}
-                            {!loading && <Lock size={18} />}
+                        <button onClick={handleSubmit} disabled={loading || isPaymentProcessing} className="w-full py-4 bg-gradient-to-r from-bronze to-yellow-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
+                            {loading || isPaymentProcessing ? 'Processing...' : `Pay ₹${billDetails.total.toLocaleString()} & Submit`}
+                            {(!loading && !isPaymentProcessing) && <Lock size={18} />}
                         </button>
                     </div>
                 );

@@ -23,6 +23,7 @@ const getBaseUrl = () => {
 };
 
 export const BASE_URL = getBaseUrl();
+export const RAZORPAY_KEY_ID = "rzp_live_SQJW4OPyfqhWwH"; // Update this with your live key
 
 // Helper for handling responses
 const handleResponse = async (response) => {
@@ -2582,6 +2583,18 @@ export const getBotResponse = (message, role) => {
     if (msg.includes('contact') || msg.includes('call')) return "You can call our support at +91 7639227019.";
 
     return "I'm here to help! Could you please provide more details?";
+};
+
+
+// --- PAYMENT INTEGRATION ---
+
+export const createRazorpayOrder = async (amount) => {
+    const response = await fetch(`${BASE_URL}/payment/create-order`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ amount }),
+    });
+    return handleResponse(response);
 };
 
 export const getFullAnalytics = async () => {

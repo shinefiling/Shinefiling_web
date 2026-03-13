@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, Upload, ArrowLeft, ArrowRight, IndianRupee, MapPin, Store, AlertTriangle, FileText, X
 } from 'lucide-react';
 import { uploadFile, submitFssaiLicense } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const FssaiCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     const [searchParams] = useSearchParams();
@@ -52,6 +53,8 @@ const FssaiCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, pla
     const [isSuccess, setIsSuccess] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [errors, setErrors] = useState({});
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const pricing = {
         basic: { serviceFee: 999, title: "Basic Update" },
@@ -132,51 +135,61 @@ const FssaiCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, pla
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail;
+        const phone = userObj?.phone || formData.userPhone;
 
-            const finalPayload = {
-                submissionId: `FSSAI-MOD-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail,
-                plan: plan,
-                amountPaid: billDetails.total,
-                businessName: formData.businessName,
-                licenseType: "MODIFICATION", // Explicitly set
-                status: "PAYMENT_SUCCESSFUL",
-                formData: {
-                    ...formData,
-                    // Map modification details to something useful or keep as is if backend supports generic formData map
-                    description: formData.modificationDetails
-                },
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${pricing[plan]?.title} - FSSAI Correction`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            // Reusing submitFssaiLicense as the controller is generic enough or we can add a new one if needed
-            // The controller accepts FssaiRequest which has a generic 'formData' inner class. 
-            // We might need to ensure backend FssaiFormData has fields we need or use a map.
-            // FssaiRequest.FssaiFormData has specific fields. 
-            // Ideally we should add 'modificationDetails' to backend FssaiFormData, but for now we can pass it in 'addressLine2' or similar if strict.
-            // Or rely on the fact that we are sending JSON and if backend uses ObjectMapper to map to class, extra fields might be ignored? 
-            // Wait, if ignored, then we lose data.
-            // I should check FssaiFormData in backend. It has 'addressLine1', 'addressLine2'.
-            // I will map 'modificationDetails' to 'addressLine2' or 'kindOfBusiness' as a hack, or better, update backend DTO.
-            // Since DTO update is quick and safer: I'll update FssaiFormData in backend to include 'modificationDetails' and 'existingLicenseNumber'.
+                    const finalPayload = {
+                        submissionId: `FSSAI-MOD-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: plan,
+                        amountPaid: billDetails.total,
+                        businessName: formData.businessName,
+                        licenseType: "MODIFICATION",
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: {
+                            ...formData,
+                            description: formData.modificationDetails
+                        },
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
 
-            await submitFssaiLicense(finalPayload);
-            setIsSuccess(true);
+                    await submitFssaiLicense(finalPayload);
+                    setIsSuccess(true);
 
-        } catch (error) {
-            console.error(error);
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                } catch (error) {
+                    console.error(error);
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -286,9 +299,13 @@ const FssaiCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, pla
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
 
-                        <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2">
-                            {isSubmitting ? 'Processing...' : 'Pay & File Application'}
-                            {!isSubmitting && <ArrowRight size={18} />}
+                        <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                            <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                            I Accept Terms & Conditions
+                        </label>
+                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2">
+                            {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Pay & File Application'}
+                            {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
                     </div>
                 );

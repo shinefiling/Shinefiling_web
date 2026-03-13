@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -6,10 +6,12 @@ import {
     Building, ArrowLeft, ArrowRight, Shield, AlertCircle, X, Lock, IndianRupee, TrendingUp, BarChart
 } from 'lucide-react';
 import { submitProjectReport, uploadFile } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const ProjectReportRegistration = ({ isModal, onClose, initialData = {}, planProp }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // Determine initial plan
     const queryPlan = searchParams.get('plan') || planProp || initialData.plan || 'market';
@@ -99,25 +101,47 @@ const ProjectReportRegistration = ({ isModal, onClose, initialData = {}, planPro
     };
 
     const handleSubmit = async () => {
-        setLoading(true);
-        try {
-            const submissionId = `DPR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-            const finalPayload = {
-                submissionId,
-                plan: selectedPlan,
-                userEmail: formData.email,
-                amountPaid: plans[selectedPlan].price,
-                formData: { ...formData },
-                documents: Object.values(uploadedFiles),
-                status: 'INITIATED'
-            };
-            await submitProjectReport(finalPayload);
-            setIsSuccess(true);
-        } catch (err) {
-            alert(err.message || 'Submission failed. Please try again.');
-        } finally {
-            setLoading(false);
-        }
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email;
+        const phone = userObj?.phone || formData.mobile || '';
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for Project Report - ${plans[selectedPlan].title}`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setLoading(true);
+                try {
+                    const submissionId = `DPR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+                    const finalPayload = {
+                        submissionId,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        amountPaid: billDetails.total,
+                        formData: { ...formData },
+                        documents: Object.values(uploadedFiles),
+                        status: 'PAYMENT_SUCCESSFUL',
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    await submitProjectReport(finalPayload);
+                    setIsSuccess(true);
+                } catch (err) {
+                    alert(err.message || 'Submission failed. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+        });
     };
 
     const handleNext = () => {
@@ -395,9 +419,9 @@ const ProjectReportRegistration = ({ isModal, onClose, initialData = {}, planPro
                         <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
                             <input type="checkbox" checked={isTermsAccepted || false} onChange={(e) => setIsTermsAccepted(e.target.checked)} /> I Accept Terms & Conditions
                         </label>
-                        <button onClick={handleSubmit} disabled={!isTermsAccepted || loading} className="w-full py-4 bg-[#ED6E3F] text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 disabled:opacity-50">
-                            {loading ? 'Generating Invoice...' : 'Pay & Start Preparation'}
-                            {!loading && <ArrowRight size={18} />}
+                        <button onClick={handleSubmit} disabled={!isTermsAccepted || loading || isPaymentProcessing} className="w-full py-4 bg-[#ED6E3F] text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 disabled:opacity-50">
+                            {loading || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Start Preparation'}
+                            {!loading && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
                     </div>
                 );

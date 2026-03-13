@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -12,6 +12,8 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import { submitProfessionalTax } from '../../../api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRazorpay } from '../../../hooks/useRazorpay';
+import { useMemo } from 'react';
 
 const ProfessionalTaxRegistration = ({ initialPlan = 'standard', onClose }) => {
     const { state } = useLocation();
@@ -29,8 +31,12 @@ const ProfessionalTaxRegistration = ({ initialPlan = 'standard', onClose }) => {
         employeeCount: '',
         employmentStartDate: '',
         totalSalaryPayout: '',
-        registrationType: 'Both (PTEC & PTRC)'
+        registrationType: 'Both (PTEC & PTRC)',
+        userEmail: user?.email || '',
+        userPhone: user?.mobile || ''
     });
+
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [files, setFiles] = useState({});
     const [uploadProgress, setUploadProgress] = useState({});
@@ -55,21 +61,61 @@ const ProfessionalTaxRegistration = ({ initialPlan = 'standard', onClose }) => {
         }
     };
 
-    const handleSubmit = async () => {
-        const payload = {
-            submissionId: `PT-${Date.now()}`,
-            plan: selectedPlan,
-            formData: formData,
-            status: "PAYMENT_SUCCESSFUL"
-        };
+    const plansData = {
+        basic: { price: 1999, title: 'Registration' },
+        standard: { price: 3999, title: 'Reg + Filing' },
+        premium: { price: 5999, title: 'Advance' }
+    };
 
-        try {
-            await submitProfessionalTax(payload);
-            setCurrentStep(6);
-        } catch (error) {
-            console.error("Submission failed", error);
-            alert("Transmission break. Please reconnect and retry.");
-        }
+    const billDetails = useMemo(() => {
+        const p = plansData[selectedPlan] || plansData.standard;
+        const basePrice = p.price;
+        const platformFee = Math.round(basePrice * 0.03);
+        const tax = Math.round(basePrice * 0.03);
+        const gst = Math.round(basePrice * 0.09);
+        const total = basePrice + platformFee + tax + gst;
+        return { basePrice, platformFee, tax, gst, total };
+    }, [selectedPlan]);
+
+    const handleSubmit = async () => {
+        const email = user?.email || formData.userEmail;
+        const phone = user?.mobile || formData.userPhone;
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plansData[selectedPlan]?.title} - Professional Tax`,
+            prefill: {
+                name: formData.employerName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                const payload = {
+                    submissionId: `PT-${Date.now()}`,
+                    plan: selectedPlan,
+                    formData: {
+                        ...formData,
+                        userEmail: email,
+                        userPhone: phone
+                    },
+                    status: "PAYMENT_SUCCESSFUL",
+                    paymentDetails: {
+                        ...billDetails,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_signature: response.razorpay_signature
+                    }
+                };
+
+                try {
+                    await submitProfessionalTax(payload);
+                    setCurrentStep(6);
+                } catch (error) {
+                    console.error("Submission failed", error);
+                    alert("Transmission break. Please reconnect and retry.");
+                }
+            }
+        });
     };
 
     const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 5));
@@ -163,6 +209,32 @@ const ProfessionalTaxRegistration = ({ initialPlan = 'standard', onClose }) => {
                             <h3 className="text-4xl font-black italic tracking-tighter uppercase border-l-8 border-amber-500 pl-6 text-left">Employer Identification</h3>
 
                             <div className="grid md:grid-cols-2 gap-8 text-left">
+                                {(!user) && (
+                                    <>
+                                        <div className="space-y-3 text-left">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 italic text-left">Email Address</label>
+                                            <input
+                                                name="userEmail"
+                                                value={formData.userEmail}
+                                                onChange={handleInputChange}
+                                                type="email"
+                                                placeholder="contact@company.com"
+                                                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black focus:border-amber-500 transition-all text-lg italic text-left"
+                                            />
+                                        </div>
+                                        <div className="space-y-3 text-left">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 italic text-left">Phone Number</label>
+                                            <input
+                                                name="userPhone"
+                                                value={formData.userPhone}
+                                                onChange={handleInputChange}
+                                                type="tel"
+                                                placeholder="9876543210"
+                                                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black focus:border-amber-500 transition-all text-lg italic text-left"
+                                            />
+                                        </div>
+                                    </>
+                                )}
                                 <div className="space-y-3 md:col-span-2 text-left">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 italic text-left">Legal Employer Name</label>
                                     <div className="relative text-left">
@@ -351,8 +423,8 @@ const ProfessionalTaxRegistration = ({ initialPlan = 'standard', onClose }) => {
                                     <div className="bg-white/10 backdrop-blur-3xl rounded-[40px] p-10 flex flex-col justify-center border border-white/10 text-left">
                                         <p className="text-amber-400 text-[10px] font-black uppercase tracking-widest mb-2 italic text-left">Statutory Fee</p>
                                         <div className="flex items-baseline gap-2 mb-6">
-                                            <span className="text-7xl font-black italic tracking-tighter text-left">₹{(selectedPlan === 'basic' ? 1999 : selectedPlan === 'standard' ? 3999 : 5999).toLocaleString()}</span>
-                                            <span className="text-amber-300 font-bold text-xl uppercase tracking-tighter italic text-left">+ GST</span>
+                                            <span className="text-7xl font-black italic tracking-tighter text-left">₹{billDetails.total.toLocaleString()}</span>
+                                            <span className="text-amber-300 font-bold text-xl uppercase tracking-tighter italic text-left">Inc. Tax</span>
                                         </div>
                                         <div className="w-full h-px bg-white/20 mb-6"></div>
                                         <p className="text-[10px] font-medium text-white/60 uppercase tracking-widest italic text-left">Includes state portal setup & certificate issue.</p>
@@ -391,9 +463,10 @@ const ProfessionalTaxRegistration = ({ initialPlan = 'standard', onClose }) => {
 
                     <button
                         onClick={currentStep === 5 ? handleSubmit : nextStep}
+                        disabled={isPaymentProcessing}
                         className="flex items-center gap-6 px-12 py-6 bg-navy text-white font-black text-xs uppercase tracking-[0.5em] rounded-[2rem] hover:bg-amber-600 transition-all shadow-2xl group"
                     >
-                        {currentStep === 5 ? 'Authorize & Register' : 'Next Stage'} <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
+                        {isPaymentProcessing ? 'Authorizing...' : currentStep === 5 ? 'Authorize & Register' : 'Next Stage'} <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
                     </button>
                 </div>
             )}

@@ -1,13 +1,15 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, Upload, ArrowLeft, ArrowRight, IndianRupee, User, FileText, Shield, Key, X
 } from 'lucide-react';
 import { uploadFile, submitDinDscCorrection } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const DINDSCCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [currentStep, setCurrentStep] = useState(1);
     const [plan, setPlan] = useState(planProp || 'kyc');
@@ -126,32 +128,54 @@ const DINDSCCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, pl
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email;
+        const phone = userObj?.mobile || formData.mobile || '';
 
-            const finalPayload = {
-                submissionId: `DIN-DSC-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.email,
-                plan: plan,
-                amountPaid: billDetails.total,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: formData,
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for DIN/DSC Correction - ${pricing[plan].title}`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitDinDscCorrection(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error(error);
-            alert("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `DIN-DSC-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: plan,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitDinDscCorrection(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    console.error(error);
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -280,9 +304,9 @@ const DINDSCCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, pl
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
 
-                        <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-4 bg-navy text-white rounded-xl font-bold shadow-lg hover:bg-black transition flex items-center justify-center gap-2">
-                            {isSubmitting ? 'Submitting Request...' : 'Proceed & Submit'}
-                            {!isSubmitting && <ArrowRight size={18} />}
+                        <button onClick={submitApplication} disabled={isSubmitting || isPaymentProcessing} className="w-full py-4 bg-navy text-white rounded-xl font-bold shadow-lg hover:bg-black transition flex items-center justify-center gap-2 disabled:opacity-50">
+                            {isSubmitting || isPaymentProcessing ? 'Submitting Request...' : 'Proceed & Submit'}
+                            {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
                     </div>
                 );

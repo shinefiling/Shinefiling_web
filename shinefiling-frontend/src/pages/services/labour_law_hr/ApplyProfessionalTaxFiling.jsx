@@ -5,6 +5,7 @@ import {
     ArrowLeft, ArrowRight, IndianRupee, AlertTriangle, Receipt, X
 } from 'lucide-react';
 import { uploadFile, submitProfessionalTax } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const ApplyProfessionalTaxFiling = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -101,27 +102,51 @@ const ApplyProfessionalTaxFiling = ({ isLoggedIn, isModal = false, planProp, onC
         }
     };
 
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
+
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = {
-                submissionId: `PTF-${Date.now()}`,
-                plan: planType,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                formData,
-                documents: docsList,
-                paymentDetails: billDetails,
-                status: "PAYMENT_SUCCESSFUL"
-            };
-            await submitProfessionalTax(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || 'guest@example.com';
+        const phone = userObj?.phone || '';
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${billDetails.planName} - Professional Tax Filing`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
+                    const finalPayload = {
+                        submissionId: `PTF-${Date.now()}`,
+                        plan: planType,
+                        userEmail: email,
+                        userPhone: phone,
+                        formData,
+                        documents: docsList,
+                        status: "PAYMENT_SUCCESSFUL",
+                        amountPaid: billDetails.total,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    await submitProfessionalTax(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -219,8 +244,8 @@ const ApplyProfessionalTaxFiling = ({ isLoggedIn, isModal = false, planProp, onC
                         <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} className="w-3.5 h-3.5 rounded border-slate-300" />
                         I agree to the terms and conditions
                     </label>
-                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
-                        {isSubmitting ? 'Processing...' : 'Pay & Submit Filing'}
+                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                        {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit Filing'}
                     </button>
                 </div>
             );

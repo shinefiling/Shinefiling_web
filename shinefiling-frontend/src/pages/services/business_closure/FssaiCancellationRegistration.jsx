@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -6,10 +6,12 @@ import {
     Building, ArrowLeft, ArrowRight, Shield, AlertCircle, X, Lock, IndianRupee, Coffee
 } from 'lucide-react';
 import { submitFssaiCancellation, uploadFile } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const FssaiCancellationRegistration = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // Determine initial plan
     const [selectedPlan, setSelectedPlan] = useState(planProp || 'state');
@@ -135,25 +137,47 @@ const FssaiCancellationRegistration = ({ isLoggedIn, isModal = false, onClose, p
     };
 
     const handleSubmit = async () => {
-        setLoading(true);
-        try {
-            const submissionId = `FSAC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-            const finalPayload = {
-                submissionId,
-                plan: selectedPlan,
-                userEmail: formData.email,
-                amountPaid: billDetails.total,
-                formData: { ...formData },
-                documents: Object.values(uploadedFiles),
-                status: 'INITIATED'
-            };
-            await submitFssaiCancellation(finalPayload);
-            setSuccess(true);
-        } catch (err) {
-            alert(err.message || 'Submission failed. Please try again.');
-        } finally {
-            setLoading(false);
-        }
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email;
+        const phone = userObj?.phone || formData.mobile || '';
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for FSSAI Cancellation - ${plans[selectedPlan].title}`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setLoading(true);
+                try {
+                    const submissionId = `FSAC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+                    const finalPayload = {
+                        submissionId,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        amountPaid: billDetails.total,
+                        formData: { ...formData },
+                        documents: Object.values(uploadedFiles),
+                        status: 'PAYMENT_SUCCESSFUL',
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    await submitFssaiCancellation(finalPayload);
+                    setSuccess(true);
+                } catch (err) {
+                    alert(err.message || 'Submission failed. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+        });
     };
 
     const steps = ['License Info', 'Reasoning', 'Documents', 'Review & Pay'];
@@ -284,9 +308,9 @@ const FssaiCancellationRegistration = ({ isLoggedIn, isModal = false, onClose, p
                             </div>
                         </div>
 
-                        <button onClick={handleSubmit} disabled={loading} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2">
-                            {loading ? 'Processing...' : 'Pay Now & Cancel License'}
-                            {!loading && <ArrowRight size={18} />}
+                        <button onClick={handleSubmit} disabled={loading || isPaymentProcessing} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2 disabled:opacity-50">
+                            {loading || isPaymentProcessing ? 'Processing Payment...' : 'Pay Now & Cancel License'}
+                            {!loading && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
 
                         <div className="flex items-center justify-center gap-2 mt-4 text-xs text-gray-400">

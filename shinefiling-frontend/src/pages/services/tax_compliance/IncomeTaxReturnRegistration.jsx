@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     CheckCircle, CreditCard, FileText,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { submitIncomeTaxReturn } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const IncomeTaxReturnRegistration = ({ planProp, isModal = false, onClose }) => {
     const { state } = useLocation();
@@ -54,6 +55,7 @@ const IncomeTaxReturnRegistration = ({ planProp, isModal = false, onClose }) => 
     const [isTermsAccepted, setIsTermsAccepted] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const plans = {
         salaried: {
@@ -130,43 +132,64 @@ const IncomeTaxReturnRegistration = ({ planProp, isModal = false, onClose }) => 
 
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        const payload = new FormData();
-        const incomeDetails = {
-            employerName: formData.employerName,
-            annualSalary: formData.annualSalary,
-            businessName: formData.businessName,
-            turnover: formData.turnover,
-            capitalGainType: formData.capitalGainType,
-            entityType: formData.entityType
-        };
+        const email = user?.email || formData.userEmail;
+        const phone = user?.mobile || formData.userPhone;
 
-        const requestData = {
-            plan: selectedPlan,
-            assessmentYear: formData.assessmentYear,
-            panNumber: formData.panNumber,
-            applicantName: formData.applicantName,
-            incomeDetails: incomeDetails,
-            wantsRefundOptimization: formData.wantsRefundOptimization,
-            userEmail: formData.userEmail,
-            userPhone: formData.userPhone
-        };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Income Tax Return`,
+            prefill: {
+                name: formData.applicantName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                const payload = new FormData();
+                const incomeDetails = {
+                    employerName: formData.employerName,
+                    annualSalary: formData.annualSalary,
+                    businessName: formData.businessName,
+                    turnover: formData.turnover,
+                    capitalGainType: formData.capitalGainType,
+                    entityType: formData.entityType
+                };
 
-        payload.append('data', JSON.stringify(requestData));
+                const requestData = {
+                    plan: selectedPlan,
+                    assessmentYear: formData.assessmentYear,
+                    panNumber: formData.panNumber,
+                    applicantName: formData.applicantName,
+                    incomeDetails: incomeDetails,
+                    wantsRefundOptimization: formData.wantsRefundOptimization,
+                    userEmail: email,
+                    userPhone: phone,
+                    status: "PAYMENT_SUCCESSFUL",
+                    paymentDetails: {
+                        ...billDetails,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_signature: response.razorpay_signature
+                    }
+                };
 
-        Object.keys(files).forEach(key => {
-            payload.append('documents', files[key]);
+                payload.append('data', JSON.stringify(requestData));
+
+                Object.keys(files).forEach(key => {
+                    payload.append('documents', files[key]);
+                });
+
+                try {
+                    const apiResponse = await submitIncomeTaxReturn(payload);
+                    setAutomationPayload({ submissionId: apiResponse?.submissionId || `ITR-${Date.now()}` });
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Submission failed. Please try again.");
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
         });
-
-        try {
-            const response = await submitIncomeTaxReturn(payload);
-            setAutomationPayload({ submissionId: response?.submissionId || `ITR-${Date.now()}` });
-            setIsSuccess(true);
-        } catch (error) {
-            alert("Submission failed. Please try again.");
-        } finally {
-            setIsSubmitting(false);
-        }
     };
 
 
@@ -282,8 +305,8 @@ const IncomeTaxReturnRegistration = ({ planProp, isModal = false, onClose }) => 
                         <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
                         I Accept Terms & Conditions
                     </label>
-                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50 transition">
-                        Pay & Submit
+                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50 transition">
+                        {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
                     </button>
                 </div>
             );

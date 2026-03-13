@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import {
     X, Info, Shield, Zap, Search, ClipboardList, Clock, User, Phone, Mail
 } from 'lucide-react';
 import { uploadFile, submitAnnualRocFiling } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const validatePlan = (plan) => {
     return ['basic', 'standard', 'premium'].includes(plan?.toLowerCase()) ? plan.toLowerCase() : 'standard';
@@ -65,7 +66,10 @@ const AnnualROCRegistration = ({ isLoggedIn, isModal = false, planProp, onClose 
     const [uploadedFiles, setUploadedFiles] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const billDetails = useMemo(() => {
         const plan = plans[selectedPlan] || plans.standard;
@@ -134,32 +138,55 @@ const AnnualROCRegistration = ({ isLoggedIn, isModal = false, planProp, onClose 
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                type: k.toUpperCase(),
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail;
+        const phone = userObj?.phone || formData.userPhone;
 
-            const finalPayload = {
-                submissionId: `ROC-ANNUAL-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail,
-                amountPaid: billDetails.total,
-                formData: formData,
-                documents: docsList,
-                status: "PAYMENT_SUCCESSFUL"
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Annual ROC Filing`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        type: k.toUpperCase(),
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitAnnualRocFiling(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            alert("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `ROC-ANNUAL-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        amountPaid: billDetails.total,
+                        formData: formData,
+                        documents: docsList,
+                        status: "PAYMENT_SUCCESSFUL",
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    const apiResponse = await submitAnnualRocFiling(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -318,13 +345,18 @@ const AnnualROCRegistration = ({ isLoggedIn, isModal = false, planProp, onClose 
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
+
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
-                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-navy/20 hover:bg-black transition-all flex items-center justify-center gap-3"
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
+                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-navy/20 hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                             >
-                                {isSubmitting ? 'Processing Application...' : 'Pay & Dispatch Filing'}
-                                {!isSubmitting && <ArrowRight size={20} />}
+                                {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Dispatch Filing'}
+                                {(!isSubmitting && !isPaymentProcessing) && <ArrowRight size={20} />}
                             </button>
 
                             <div className="mt-6 flex items-center justify-center gap-2 opacity-30 italic">

@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, Upload, CreditCard, FileText, User,
     Building, ArrowLeft, ArrowRight, Shield, AlertCircle, Lock, IndianRupee, Users, Plus, Trash2, X, Briefcase, MapPin, RefreshCw
 } from 'lucide-react';
 import { uploadFile, submitGstAmendment } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const GstAmendmentRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -60,6 +61,7 @@ const GstAmendmentRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
     const [isTermsAccepted, setIsTermsAccepted] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const plans = {
         startup: {
@@ -158,20 +160,51 @@ const GstAmendmentRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = {
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail,
-                formData: formData,
-                documents: docsList,
-                status: "PAYMENT_SUCCESSFUL"
-            };
-            const response = await submitGstAmendment(finalPayload);
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) { alert("Submission error: " + error.message); } finally { setIsSubmitting(false); }
+        const email = JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail;
+        const phone = JSON.parse(localStorage.getItem('user'))?.phone || formData.userPhone;
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - GST Amendment Registration`,
+            prefill: {
+                name: formData.legalName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
+
+                    const finalPayload = {
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        formData: formData,
+                        documents: docsList,
+                        status: "PAYMENT_SUCCESSFUL",
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    const apiResponse = await submitGstAmendment(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -246,8 +279,8 @@ const GstAmendmentRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
                         <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
                         I Accept Terms & Conditions
                     </label>
-                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50 transition">
-                        Pay & Submit
+                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50 transition">
+                        {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
                     </button>
                 </div>
             );

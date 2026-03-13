@@ -1,7 +1,8 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, Upload, CreditCard, Building, ArrowLeft, ArrowRight, Shield, IndianRupee, X, Zap, Calendar, ReceiptText, User } from 'lucide-react';
 import { submitTdsReturn } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 import { useAuth } from '../../../context/AuthContext';
 
 const TdsReturnRegistration = ({ initialPlan = 'non_salary', isModal = false, onClose }) => {
@@ -20,6 +21,8 @@ const TdsReturnRegistration = ({ initialPlan = 'non_salary', isModal = false, on
         quarter: 'Q1',
         deductorType: 'Company'
     });
+
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [files, setFiles] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,30 +62,49 @@ const TdsReturnRegistration = ({ initialPlan = 'non_salary', isModal = false, on
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        const payload = new FormData();
-        const requestData = {
-            plan: selectedPlan,
-            ...formData,
-            status: "PAYMENT_SUCCESSFUL",
-            paymentDetails: billDetails
-        };
+        const email = user?.email || "";
+        const phone = user?.mobile || "";
 
-        payload.append('data', JSON.stringify(requestData));
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - TDS Return`,
+            prefill: {
+                name: formData.deductorName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                const payload = new FormData();
+                const requestData = {
+                    plan: selectedPlan,
+                    ...formData,
+                    status: "PAYMENT_SUCCESSFUL",
+                    paymentDetails: {
+                        ...billDetails,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_signature: response.razorpay_signature
+                    }
+                };
 
-        Object.keys(files).forEach(key => {
-            payload.append('documents', files[key]);
+                payload.append('data', JSON.stringify(requestData));
+
+                Object.keys(files).forEach(key => {
+                    payload.append('documents', files[key]);
+                });
+
+                try {
+                    await submitTdsReturn(payload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    console.error("Submission failed", error);
+                    alert("Transmission break. Please reconnect and retry.");
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
         });
-
-        try {
-            await submitTdsReturn(payload);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error("Submission failed", error);
-            alert("Transmission break. Please reconnect and retry.");
-        } finally {
-            setIsSubmitting(false);
-        }
     };
 
     const handleNext = () => setCurrentStep(p => Math.min(5, p + 1));
@@ -195,7 +217,9 @@ const TdsReturnRegistration = ({ initialPlan = 'non_salary', isModal = false, on
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
                         <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center"><input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} /> I Accept Terms & Conditions</label>
-                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">Pay & Submit</button>
+                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                        </button>
                     </div>
                 );
         }

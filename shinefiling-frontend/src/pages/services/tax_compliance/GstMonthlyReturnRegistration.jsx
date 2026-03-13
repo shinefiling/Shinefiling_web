@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
@@ -6,6 +6,7 @@ import {
     Building, ArrowLeft, ArrowRight, Shield, AlertCircle, Lock, IndianRupee, PieChart, Calendar, X
 } from 'lucide-react';
 import { uploadFile, submitGstMonthlyReturn } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const GstMonthlyReturnRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -45,6 +46,7 @@ const GstMonthlyReturnRegistration = ({ isLoggedIn, isModal = false, planProp, o
     const [isSuccess, setIsSuccess] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const plans = {
         nil: { price: 499, title: 'NIL Return', features: ["No Sales/Purchase", "Zero Tax Liability"], color: 'bg-white border-slate-200' },
@@ -98,14 +100,48 @@ const GstMonthlyReturnRegistration = ({ isLoggedIn, isModal = false, planProp, o
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = { plan: selectedPlan, formData: formData, documents: docsList, status: "PAYMENT_SUCCESSFUL" };
-            const response = await submitGstMonthlyReturn(finalPayload);
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) { alert("Error: " + error.message); } finally { setIsSubmitting(false); }
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        const email = storedUser?.email || "";
+        const phone = storedUser?.phone || "";
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - GST Monthly Return`,
+            prefill: {
+                name: storedUser?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
+                    const finalPayload = {
+                        plan: selectedPlan,
+                        formData: formData,
+                        documents: docsList,
+                        status: "PAYMENT_SUCCESSFUL",
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    const apiResponse = await submitGstMonthlyReturn(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -171,7 +207,9 @@ const GstMonthlyReturnRegistration = ({ isLoggedIn, isModal = false, planProp, o
                             <div className="flex justify-between text-sm text-gray-600"><span>GST (9%)</span><span className="font-bold">₹{billDetails.gst.toLocaleString()}</span></div>
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
-                        <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-4 bg-[#043E52] text-white rounded-xl font-bold transition">{isSubmitting ? 'Processing...' : 'Pay & Submit'}</button>
+                        <button onClick={submitApplication} disabled={isSubmitting || isPaymentProcessing} className="w-full py-4 bg-[#043E52] text-white rounded-xl font-bold transition">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                        </button>
                     </div>
                 );
             default: return null;

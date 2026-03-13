@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, CreditCard, FileText, User, Building, ArrowRight, X, Shield, Users as UsersIcon, Globe
 } from 'lucide-react';
 import { uploadFile, submitIndianSubsidiaryRegistration } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 // --- CONSTANTS & HELPERS ---
 const validatePlan = (plan) => {
@@ -76,6 +77,7 @@ const IndianSubsidiaryRegistration = ({ isLoggedIn, isModal = false, planProp, o
     const [isSuccess, setIsSuccess] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const billDetails = useMemo(() => {
         const plan = plans[selectedPlan] || plans.pro;
@@ -163,29 +165,56 @@ const IndianSubsidiaryRegistration = ({ isLoggedIn, isModal = false, planProp, o
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const payload = {
-                ...formData,
-                plan: selectedPlan,
-                amount: billDetails.total,
-                documents: docsList,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail || formData.directors[0]?.email,
-                userPhone: JSON.parse(localStorage.getItem('user'))?.phone || formData.userPhone,
-                submissionId: `SUB-${Date.now()}`
-            };
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail || formData.directors[0]?.email;
+        const phone = userObj?.phone || formData.userPhone || formData.directors[0]?.phone;
 
-            const response = await submitIndianSubsidiaryRegistration(payload);
-            if (response) {
-                setAutomationPayload(response);
-                setIsSuccess(true);
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Indian Subsidiary Registration`,
+            prefill: {
+                name: formData.directors[0]?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
+
+                    const payload = {
+                        ...formData,
+                        plan: selectedPlan,
+                        amount: billDetails.total,
+                        documents: docsList,
+                        userEmail: email,
+                        userPhone: phone,
+                        submissionId: `SUB-${Date.now()}`,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        },
+                        status: "PAYMENT_SUCCESSFUL"
+                    };
+
+                    const apiResponse = await submitIndianSubsidiaryRegistration(payload);
+                    if (apiResponse) {
+                        setAutomationPayload(apiResponse);
+                        setIsSuccess(true);
+                    }
+                } catch (err) {
+                    alert("Submission failed: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
             }
-        } catch (error) {
-            alert("Submission failed: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        });
     };
 
     const renderStepContent = () => {
@@ -296,8 +325,8 @@ const IndianSubsidiaryRegistration = ({ isLoggedIn, isModal = false, planProp, o
                         <div className="flex justify-between text-sm text-gray-600"><span>GST (9%)</span><span className="font-bold">₹{billDetails.gst.toLocaleString()}</span></div>
                         <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                     </div>
-                    <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg">
-                        {isSubmitting ? 'Processing...' : 'Pay & Register'}
+                    <button onClick={submitApplication} disabled={isSubmitting || isPaymentProcessing} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg">
+                        {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Register'}
                     </button>
                 </div>
             );

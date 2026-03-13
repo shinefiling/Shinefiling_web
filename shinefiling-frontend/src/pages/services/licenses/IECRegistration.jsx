@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,6 +6,7 @@ import {
     ArrowLeft, ArrowRight, IndianRupee, MapPin, Building, Globe, Zap, Landmark, AlertTriangle, X, Shield, Globe2, Check
 } from 'lucide-react';
 import { uploadFile, submitIEC } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const IECRegistration = ({ isLoggedIn, isModal = false, planProp = 'standard', onClose }) => {
     const [searchParams] = useSearchParams();
@@ -16,6 +17,8 @@ const IECRegistration = ({ isLoggedIn, isModal = false, planProp = 'standard', o
     const [isSuccess, setIsSuccess] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [errors, setErrors] = useState({});
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [formData, setFormData] = useState({
         firmName: '',
@@ -124,34 +127,56 @@ const IECRegistration = ({ isLoggedIn, isModal = false, planProp = 'standard', o
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || "guest@example.com";
+        const phone = userObj?.phone || "9999999999";
 
-            const finalPayload = {
-                submissionId: `IEC-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                plan: "standard",
-                amountPaid: billDetails.total,
-                firmName: formData.firmName,
-                firmPan: formData.firmPan,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: formData,
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${currentPricing.title} - IEC Registration`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitIEC(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `IEC-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: planProp || "standard",
+                        amountPaid: billDetails.total,
+                        firmName: formData.firmName,
+                        firmPan: formData.firmPan,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitIEC(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -290,13 +315,17 @@ const IECRegistration = ({ isLoggedIn, isModal = false, planProp = 'standard', o
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
                                 className="w-full py-4 bg-navy text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-black transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-3 group"
                             >
-                                {isSubmitting ? 'Syncing...' : 'Complete Filing'}
-                                {!isSubmitting && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                                {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Complete Filing'}
+                                {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
                             </button>
                         </div>
                     </motion.div>

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,6 +6,8 @@ import {
     ArrowLeft, ArrowRight, IndianRupee, MapPin, Factory, Droplets, AlertTriangle, X, Shield, Check
 } from 'lucide-react';
 import { uploadFile, submitPollutionControl } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
+import { useMemo } from 'react';
 
 const PollutionControlRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -34,6 +36,8 @@ const PollutionControlRegistration = ({ isLoggedIn, isModal = false, planProp, o
     const [isSuccess, setIsSuccess] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [errors, setErrors] = useState({});
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // Dynamic Pricing
     const pricing = {
@@ -43,7 +47,23 @@ const PollutionControlRegistration = ({ isLoggedIn, isModal = false, planProp, o
     };
 
     const currentPricing = pricing[planProp] || (formData.businessCategory === 'RED' ? { price: 24999, title: "High Impact Consent" } : pricing.cte);
-    const price = currentPricing.price;
+    
+    const billDetails = useMemo(() => {
+        const basePrice = currentPricing.price;
+        const platformFee = Math.round(basePrice * 0.03);
+        const tax = Math.round(basePrice * 0.03);
+        const gst = Math.round(basePrice * 0.09);
+
+        return {
+            base: basePrice,
+            platformFee,
+            tax,
+            gst,
+            total: basePrice + platformFee + tax + gst
+        };
+    }, [currentPricing]);
+
+    const price = billDetails.total;
 
     // Protect Route
     useEffect(() => {
@@ -126,40 +146,62 @@ const PollutionControlRegistration = ({ isLoggedIn, isModal = false, planProp, o
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || "guest@example.com";
+        const phone = userObj?.phone || "9999999999";
 
-            const finalPayload = {
-                submissionId: `PCB-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                plan: planType,
-                amountPaid: price,
-                industryName: formData.industryName,
-                state: formData.state,
-                businessCategory: formData.businessCategory,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: {
-                    ...formData,
-                    investmentAmount: parseFloat(formData.investmentAmount) || 0,
-                    dailyWaterConsumption: parseFloat(formData.dailyWaterConsumption) || 0,
-                    dailyEffluentDischarge: parseFloat(formData.dailyEffluentDischarge) || 0
-                },
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${currentPricing.title} - Pollution Control`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitPollutionControl(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `PCB-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: planType || "CTE",
+                        amountPaid: billDetails.total,
+                        industryName: formData.industryName,
+                        state: formData.state,
+                        businessCategory: formData.businessCategory,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: {
+                            ...formData,
+                            investmentAmount: parseFloat(formData.investmentAmount) || 0,
+                            dailyWaterConsumption: parseFloat(formData.dailyWaterConsumption) || 0,
+                            dailyEffluentDischarge: parseFloat(formData.dailyEffluentDischarge) || 0
+                        },
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitPollutionControl(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -297,26 +339,30 @@ const PollutionControlRegistration = ({ isLoggedIn, isModal = false, planProp, o
                             <div className="bg-gray-50 p-6 rounded-2xl mb-8 space-y-4 text-xs border border-gray-100 shadow-inner">
                                 <div className="flex justify-between items-center font-bold text-gray-400 uppercase tracking-widest">
                                     <span>Professional Service</span>
-                                    <span className="text-navy">₹{price.toLocaleString()}</span>
+                                    <span className="text-navy">₹{billDetails.base.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center font-bold text-gray-400 uppercase tracking-widest">
-                                    <span>Category Fee ({formData.businessCategory})</span>
-                                    <span className="text-[#ED6E3F] text-[9px]">INCLUDED</span>
+                                    <span>Taxes & Platform (15%)</span>
+                                    <span className="text-navy">₹{(billDetails.total - billDetails.base).toLocaleString()}</span>
                                 </div>
                                 <div className="h-px bg-gray-200"></div>
                                 <div className="flex justify-between items-center text-3xl font-bold text-navy">
                                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest opacity-60">Total</span>
-                                    <span className="tracking-tighter">₹{price.toLocaleString()}</span>
+                                    <span className="tracking-tighter">₹{billDetails.total.toLocaleString()}</span>
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
                                 className="w-full py-4 bg-navy text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-black transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-3 group"
                             >
-                                {isSubmitting ? 'Syncing...' : 'Initiate payment'}
-                                {!isSubmitting && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                                {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Initiate payment'}
+                                {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
                             </button>
                         </div>
                     </motion.div>
@@ -350,16 +396,16 @@ const PollutionControlRegistration = ({ isLoggedIn, isModal = false, planProp, o
                             <div className="space-y-3 pt-4 border-t border-white/10 relative z-10">
                                 <div className="flex justify-between items-center text-xs group">
                                     <span className="text-gray-300 group-hover:text-white transition-colors">Service Fee</span>
-                                    <span className="text-white font-medium font-mono">₹{price.toLocaleString()}</span>
+                                    <span className="text-white font-medium font-mono">₹{billDetails.base.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs group">
-                                    <span className="text-gray-300 group-hover:text-white transition-colors">Tax & GST</span>
-                                    <span className="text-white font-medium font-mono">₹{Math.round(price * 0.18).toLocaleString()}</span>
+                                    <span className="text-gray-300 group-hover:text-white transition-colors">Tax & Platform</span>
+                                    <span className="text-white font-medium font-mono">₹{(billDetails.total - billDetails.base).toLocaleString()}</span>
                                 </div>
                                 <div className="h-px bg-white/10 my-2"></div>
                                 <div className="flex justify-between items-end">
-                                    <span className="text-[11px] font-bold text-[#ED6E3F] uppercase tracking-wider">Estimated Total</span>
-                                    <span className="text-xl font-bold text-white leading-none">₹{Math.round(price * 1.18).toLocaleString()}</span>
+                                    <span className="text-[11px] font-bold text-[#ED6E3F] uppercase tracking-wider">Total Payable</span>
+                                    <span className="text-xl font-bold text-white leading-none">₹{billDetails.total.toLocaleString()}</span>
                                 </div>
                             </div>
                             <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-[#ED6E3F] to-transparent opacity-50"></div>

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, Shield, CreditCard, FileText,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { submitSection8Registration, uploadFile } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 
 
@@ -116,6 +117,7 @@ const Section8Registration = ({ isLoggedIn, isModal = false, planProp, onClose }
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // Memoize bill details
     const billDetails = useMemo(() => {
@@ -193,37 +195,55 @@ const Section8Registration = ({ isLoggedIn, isModal = false, planProp, onClose }
     };
 
     const handleSubmit = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.directors[0].email;
+        const phone = userObj?.phone || formData.directors[0].mobile;
 
-            const finalPayload = {
-                submissionId: `NGO-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.directors[0].email,
-                formData: formData,
-                documents: docsList,
-                status: "PAYMENT_SUCCESSFUL"
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Section 8 NGO`,
+            prefill: {
+                name: formData.directors[0]?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            // Backend expects Multipart with 'data' field containing JSON string
-            const formDataObj = new FormData();
-            formDataObj.append('data', JSON.stringify(finalPayload));
+                    const finalPayload = {
+                        submissionId: `NGO-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        },
+                        status: "PAYMENT_SUCCESSFUL"
+                    };
 
-            const response = await submitSection8Registration(formDataObj);
+                    const formDataObj = new FormData();
+                    formDataObj.append('data', JSON.stringify(finalPayload));
 
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error("Submission failed", error);
-            alert("Failed to submit. " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const apiResponse = await submitSection8Registration(formDataObj);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (err) {
+                    alert("Submission failed: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -368,9 +388,9 @@ const Section8Registration = ({ isLoggedIn, isModal = false, planProp, onClose }
                             </div>
                             <p className="text-[10px] text-gray-400 text-right mt-1">+ Govt Fees (Later)</p>
                         </div>
-                        <button onClick={handleSubmit} disabled={isSubmitting} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2">
-                            {isSubmitting ? 'Processing...' : 'Pay & Submit'}
-                            {!isSubmitting && <ArrowRight size={18} />}
+                        <button onClick={handleSubmit} disabled={isSubmitting || isPaymentProcessing} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                            {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
                     </div>
                 );

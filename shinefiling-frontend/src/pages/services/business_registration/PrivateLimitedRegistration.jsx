@@ -5,7 +5,8 @@ import {
     CheckCircle, Upload, CreditCard, FileText, User,
     Building, ArrowLeft, ArrowRight, Shield, AlertCircle, Lock, IndianRupee, Users, Plus, Trash2, X, Receipt
 } from 'lucide-react';
-import { uploadFile, submitPrivateLimitedRegistration } from '../../../api';
+import { uploadFile, submitPrivateLimitedRegistration, RAZORPAY_KEY_ID } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 // --- CONSTANTS & HELPERS MOVED OUTSIDE COMPONENT TO PREVENT RE-CREATION ---
 
@@ -143,6 +144,10 @@ const PrivateLimitedRegistration = ({ isLoggedIn, isModal = false, planProp, onC
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
     };
 
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
+
+    // Validation & Handling Logic
+
     const addDirector = () => {
         if (formData.directors.length < 5) {
             setFormData(prev => ({ ...prev, directors: [...prev.directors, { name: '', fatherName: '', dob: '', pan: '', aadhaar: '', email: '', phone: '', dinNumber: '' }] }));
@@ -203,27 +208,47 @@ const PrivateLimitedRegistration = ({ isLoggedIn, isModal = false, planProp, onC
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = {
-                submissionId: `PVT-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail,
-                userPhone: JSON.parse(localStorage.getItem('user'))?.phone || formData.userPhone,
-                formData: formData,
-                documents: docsList,
-                paymentDetails: billDetails,
-                status: "PAYMENT_SUCCESSFUL"
-            };
-            const response = await submitPrivateLimitedRegistration(finalPayload);
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) {
-            alert("Error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail;
+        const phone = userObj?.phone || formData.userPhone;
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title}`,
+            prefill: {
+                name: formData.directors[0]?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
+                    const finalPayload = {
+                        submissionId: `PVT-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        },
+                        status: "PAYMENT_SUCCESSFUL"
+                    };
+                    const apiResponse = await submitPrivateLimitedRegistration(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (err) {
+                    alert("Submission failed: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -300,7 +325,9 @@ const PrivateLimitedRegistration = ({ isLoggedIn, isModal = false, planProp, onC
                         <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center"><input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} /> I Accept Terms & Conditions</label>
-                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">Pay & Submit</button>
+                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                        {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                    </button>
                 </div>
             );
         }

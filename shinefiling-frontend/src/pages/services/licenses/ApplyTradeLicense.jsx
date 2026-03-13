@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,6 +7,7 @@ import {
     Shield, Check, User
 } from 'lucide-react';
 import { submitTradeLicense, uploadFile } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const ApplyTradeLicense = ({ isLoggedIn, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -78,38 +79,64 @@ const ApplyTradeLicense = ({ isLoggedIn, onClose }) => {
         }
     };
 
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setError('');
+        const priceMap = {
+            standard: 2999,
+            renewal: 1999,
+            basic: 499
+        };
+        const amount = priceMap[plan] || 2999;
 
-        try {
-            const payload = {
-                submissionId: `TRADE-${Date.now()}`,
-                userEmail: formData.userEmail,
-                businessName: formData.businessName,
-                state: formData.state,
-                city: formData.city,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: {
-                    entityType: formData.entityType,
-                    natureOfTrade: formData.natureOfTrade,
-                    commencementDate: formData.commencementDate,
-                    address: formData.address,
-                    wardNumber: formData.wardNumber,
-                    areaSquareFeet: parseFloat(formData.areaSquareFeet),
-                    isRented: formData.isRented
-                },
-                documents: formData.uploadedDocuments
-            };
+        processPayment({
+            amount: amount,
+            description: `Payment for ${planTitle} - Trade License`,
+            prefill: {
+                name: user?.fullName || "Customer",
+                email: formData.userEmail,
+                contact: user?.phone || ''
+            },
+            onSuccess: async (response) => {
+                setLoading(true);
+                setError('');
+                try {
+                    const payload = {
+                        submissionId: `TRADE-${Date.now()}`,
+                        userEmail: formData.userEmail,
+                        userPhone: user?.phone || '',
+                        businessName: formData.businessName,
+                        state: formData.state,
+                        city: formData.city,
+                        status: "PAYMENT_SUCCESSFUL",
+                        amountPaid: amount,
+                        formData: {
+                            entityType: formData.entityType,
+                            natureOfTrade: formData.natureOfTrade,
+                            commencementDate: formData.commencementDate,
+                            address: formData.address,
+                            wardNumber: formData.wardNumber,
+                            areaSquareFeet: parseFloat(formData.areaSquareFeet),
+                            isRented: formData.isRented
+                        },
+                        documents: formData.uploadedDocuments,
+                        paymentDetails: {
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
 
-            await submitTradeLicense(payload);
-            setCurrentStep(3);
-        } catch (err) {
-            setError(err.message || 'Submission failed. Please try again.');
-        } finally {
-            setLoading(false);
-        }
+                    await submitTradeLicense(payload);
+                    setCurrentStep(3);
+                } catch (err) {
+                    setError(err.message || 'Submission failed. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+        });
     };
 
     const planPrices = {
@@ -362,10 +389,10 @@ const ApplyTradeLicense = ({ isLoggedIn, onClose }) => {
                             {error && <span className="text-xs font-bold text-red-500 animate-pulse">{error}</span>}
                             <button
                                 onClick={(e) => currentStep === 1 ? setCurrentStep(2) : handleSubmit(e)}
-                                disabled={loading}
+                                disabled={loading || isPaymentProcessing}
                                 className="px-10 py-4 bg-navy text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-navy/20 hover:bg-black hover:-translate-y-1 transition-all flex items-center gap-3"
                             >
-                                {loading ? 'Filing...' : currentStep === 1 ? 'Next Phase' : 'Apply Now'}
+                                {loading || isPaymentProcessing ? (currentStep === 1 ? 'Next Phase' : 'Processing Payment...') : currentStep === 1 ? 'Next Phase' : 'Apply Now'}
                                 <ArrowRight size={18} />
                             </button>
                         </div>

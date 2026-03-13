@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, Upload, ArrowLeft, ArrowRight, IndianRupee, Building, FileText, AlertCircle, RefreshCw, X
 } from 'lucide-react';
 import { uploadFile, submitGstCorrection } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const pricing = {
     'non-core': { serviceFee: 999, title: "Non-Core Amendment" },
@@ -14,6 +15,7 @@ const pricing = {
 const GstCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [currentStep, setCurrentStep] = useState(1);
     const [plan, setPlan] = useState(planProp || 'non-core');
@@ -131,32 +133,54 @@ const GstCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, planP
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail;
+        const phone = userObj?.mobile || formData.userPhone || '';
 
-            const finalPayload = {
-                submissionId: `GST-A-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail,
-                plan: plan,
-                amountPaid: billDetails.total,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: formData,
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for GST Correction - ${pricing[plan].title}`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitGstCorrection(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error(error);
-            alert("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `GST-A-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: plan,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitGstCorrection(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    console.error(error);
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -296,9 +320,9 @@ const GstCorrectionRegistration = ({ isLoggedIn, isModal = false, onClose, planP
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
 
-                        <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold shadow-lg hover:bg-teal-700 transition flex items-center justify-center gap-2">
-                            {isSubmitting ? 'Processing...' : 'Pay & File Amendment'}
-                            {!isSubmitting && <ArrowRight size={18} />}
+                        <button onClick={submitApplication} disabled={isSubmitting || isPaymentProcessing} className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold shadow-lg hover:bg-teal-700 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & File Amendment'}
+                            {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
                     </div>
                 );

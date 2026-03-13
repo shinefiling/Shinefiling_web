@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,6 +6,7 @@ import {
     ArrowLeft, ArrowRight, IndianRupee, MapPin, Building, AlertTriangle, X, Shield, Store, Calendar, Briefcase
 } from 'lucide-react';
 import { uploadFile, submitTradeLicense } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const TradeLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -16,6 +17,8 @@ const TradeLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
     const [isSuccess, setIsSuccess] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [errors, setErrors] = useState({});
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [planType, setPlanType] = useState(planProp || 'standard');
     const plans = {
@@ -114,34 +117,56 @@ const TradeLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || "guest@example.com";
+        const phone = userObj?.phone || "9999999999";
 
-            const finalPayload = {
-                submissionId: `TRADE-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                plan: planType,
-                amountPaid: billDetails.total,
-                businessName: formData.businessName,
-                city: formData.city,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: formData,
-                documents: docsList
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[planType]?.title} - Trade License`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitTradeLicense(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `TRADE-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: planType,
+                        amountPaid: billDetails.total,
+                        businessName: formData.businessName,
+                        city: formData.city,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitTradeLicense(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -302,13 +327,17 @@ const TradeLicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
                                 className="w-full py-5 bg-navy text-white rounded-3xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-navy/20 hover:bg-black transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3"
                             >
-                                {isSubmitting ? 'Verifying...' : 'Authorize Submission'}
-                                {!isSubmitting && <ArrowRight size={20} />}
+                                {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Authorize Submission'}
+                                {!isSubmitting && !isPaymentProcessing && <ArrowRight size={20} />}
                             </button>
                         </div>
                     </motion.div>

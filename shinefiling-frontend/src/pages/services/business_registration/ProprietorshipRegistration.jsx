@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, CreditCard, FileText,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { submitProprietorshipRegistration, uploadFile } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 // CONSTANTS
 const validatePlan = (plan) => {
@@ -138,6 +139,8 @@ const ProprietorshipRegistration = ({ isLoggedIn, isModal = false, planProp, onC
         };
     }, [selectedPlan]);
 
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
@@ -185,33 +188,53 @@ const ProprietorshipRegistration = ({ isLoggedIn, isModal = false, planProp, onC
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(files).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email;
+        const phone = userObj?.phone || formData.mobile;
 
-            const finalPayload = {
-                submissionId: `SOLE-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.email,
-                formData: formData,
-                documents: docsList,
-                status: "PAYMENT_SUCCESSFUL",
-                amount: billDetails.total
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Proprietorship`,
+            prefill: {
+                name: formData.proprietorName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(files).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            const response = await submitProprietorshipRegistration(finalPayload);
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error("Submission failed", error);
-            alert("Failed to submit. " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `SOLE-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        },
+                        status: "PAYMENT_SUCCESSFUL",
+                        amount: billDetails.total
+                    };
+
+                    const apiResponse = await submitProprietorshipRegistration(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (err) {
+                    alert("Submission failed: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -309,7 +332,9 @@ const ProprietorshipRegistration = ({ isLoggedIn, isModal = false, planProp, onC
                         <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center"><input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} /> I Accept Terms & Conditions</label>
-                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">Pay & Submit</button>
+                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                        {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                    </button>
                 </div>
             );
         }

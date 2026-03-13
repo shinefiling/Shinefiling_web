@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import {
     X, Info, Shield, Zap, Search, ClipboardList, Clock, CreditCard, Trash2
 } from 'lucide-react';
 import { uploadFile, submitAddRemoveDirector } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const AddRemoveDirectorRegistration = ({ isLoggedIn, isModal = false, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -38,7 +39,10 @@ const AddRemoveDirectorRegistration = ({ isLoggedIn, isModal = false, onClose })
     const [uploadedFiles, setUploadedFiles] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const planPrice = 1999;
     const billDetails = useMemo(() => {
@@ -110,31 +114,54 @@ const AddRemoveDirectorRegistration = ({ isLoggedIn, isModal = false, onClose })
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || 'guest@example.com';
+        const phone = userObj?.phone || '';
 
-            const finalPayload = {
-                submissionId: `ROCDIR-${Date.now()}`,
-                actionType: actionType.toUpperCase(),
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                formData: formData,
-                documents: docsList,
-                status: "PAYMENT_SUCCESSFUL",
-                amountPaid: billDetails.total
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${actionType === 'add' ? 'Add' : 'Remove'} Director Filing`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitAddRemoveDirector(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            alert("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `ROCDIR-${Date.now()}`,
+                        actionType: actionType.toUpperCase(),
+                        userEmail: email,
+                        userPhone: phone,
+                        formData: formData,
+                        documents: docsList,
+                        status: "PAYMENT_SUCCESSFUL",
+                        amountPaid: billDetails.total,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    const apiResponse = await submitAddRemoveDirector(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -305,13 +332,18 @@ const AddRemoveDirectorRegistration = ({ isLoggedIn, isModal = false, onClose })
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
+
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
-                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-navy/30 hover:bg-black transition-all flex items-center justify-center gap-4"
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
+                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-navy/30 hover:bg-black transition-all flex items-center justify-center gap-4 disabled:opacity-50"
                             >
-                                {isSubmitting ? 'PROCESSING FILING...' : 'AUTHORIZE ROC FILING'}
-                                {!isSubmitting && <ArrowRight size={20} />}
+                                {isSubmitting || isPaymentProcessing ? 'PROCESSING PAYMENT...' : 'AUTHORIZE ROC FILING'}
+                                {!isSubmitting && !isPaymentProcessing && <ArrowRight size={20} />}
                             </button>
                         </div>
                     </div>

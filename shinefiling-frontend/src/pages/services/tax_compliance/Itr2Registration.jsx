@@ -1,7 +1,9 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, Upload, CreditCard, FileText, User, Building, ArrowLeft, ArrowRight, Shield, AlertCircle, Lock, IndianRupee, PieChart, Calendar, X } from 'lucide-react';
 import { uploadFile, submitIncomeTaxReturn } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
+import { useAuth } from '../../../context/AuthContext';
 
 const Itr2Registration = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
@@ -23,6 +25,8 @@ const Itr2Registration = ({ isLoggedIn, isModal = false, planProp, onClose }) =>
     const [isSuccess, setIsSuccess] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
     const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { user } = useAuth();
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const plans = {
         basic: { price: 999, title: 'Basic ITR-2', features: ["Multiple House Property"], color: 'bg-white border-slate-200' },
@@ -56,14 +60,44 @@ const Itr2Registration = ({ isLoggedIn, isModal = false, planProp, onClose }) =>
         } catch (error) { alert("Upload failed"); }
     };
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = { plan: selectedPlan, formData: formData, documents: docsList, status: "PAYMENT_SUCCESSFUL", paymentDetails: billDetails };
-            const response = await submitIncomeTaxReturn(finalPayload);
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) { alert("Error: " + error.message); } finally { setIsSubmitting(false); }
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        const email = user?.email || storedUser?.email || "";
+        const phone = user?.mobile || storedUser?.phone || "";
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - ITR-2 Filing`,
+            prefill: {
+                name: formData.fullName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
+                    const finalPayload = {
+                        plan: selectedPlan,
+                        formData: formData,
+                        documents: docsList,
+                        status: "PAYMENT_SUCCESSFUL",
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    const apiResponse = await submitIncomeTaxReturn(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -119,7 +153,9 @@ const Itr2Registration = ({ isLoggedIn, isModal = false, planProp, onClose }) =>
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
                         <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center"><input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} /> I Accept Terms & Conditions</label>
-                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">Pay & Submit</button>
+                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                        </button>
                     </div>
                 );
         }

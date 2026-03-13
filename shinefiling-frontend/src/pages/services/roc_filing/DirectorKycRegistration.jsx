@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import {
     X, Info, Shield, Zap, Search, ClipboardList, Clock, CreditCard
 } from 'lucide-react';
 import { uploadFile, submitDirectorKyc } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const validatePlan = (plan) => {
     return ['standard', 'premium'].includes(plan?.toLowerCase()) ? plan.toLowerCase() : 'standard';
@@ -61,7 +62,10 @@ const DirectorKycRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
     const [uploadedFiles, setUploadedFiles] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const billDetails = useMemo(() => {
         const plan = plans[selectedPlan] || plans.standard;
@@ -147,30 +151,53 @@ const DirectorKycRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.emailId;
+        const phone = userObj?.phone || formData.mobileNumber;
 
-            const finalPayload = {
-                submissionId: `ROCKYC-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.emailId,
-                formData: formData,
-                documents: docsList,
-                status: "PAYMENT_SUCCESSFUL"
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Director KYC Filing`,
+            prefill: {
+                name: formData.fullName || userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            await submitDirectorKyc(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            alert("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `ROCKYC-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        formData: formData,
+                        documents: docsList,
+                        status: "PAYMENT_SUCCESSFUL",
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    const apiResponse = await submitDirectorKyc(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -326,13 +353,18 @@ const DirectorKycRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
+
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
-                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-navy/20 hover:bg-black transition-all flex items-center justify-center gap-4 group"
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
+                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-navy/20 hover:bg-black transition-all flex items-center justify-center gap-4 group disabled:opacity-50"
                             >
-                                {isSubmitting ? 'PROCESSING FILING...' : 'PAY & PROCESS KYC'}
-                                {!isSubmitting && <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />}
+                                {isSubmitting || isPaymentProcessing ? 'PROCESSING PAYMENT...' : 'PAY & PROCESS KYC'}
+                                {!isSubmitting && !isPaymentProcessing && <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />}
                             </button>
                         </div>
                     </div>

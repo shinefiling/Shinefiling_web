@@ -21,8 +21,11 @@ public class PaymentController {
     @Autowired
     private ServiceRequestRepository serviceRequestRepository;
 
-    private final String KEY_ID = "rzp_test_v9bZpQvmrVnUzZ";
-    private final String KEY_SECRET = "7WK71mMmiIYb4ZLi4Mcw1eDl";
+    @org.springframework.beans.factory.annotation.Value("${razorpay.key.id}")
+    private String KEY_ID;
+
+    @org.springframework.beans.factory.annotation.Value("${razorpay.key.secret}")
+    private String KEY_SECRET;
 
     @PostMapping("/create-order")
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> data) {

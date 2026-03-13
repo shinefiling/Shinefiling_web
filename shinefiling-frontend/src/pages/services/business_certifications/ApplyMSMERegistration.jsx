@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     CheckCircle, Upload, ArrowLeft, ArrowRight, IndianRupee, User,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadFile, submitMSMERegistration } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const ApplyMSMERegistration = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     const [searchParams] = useSearchParams();
@@ -68,6 +69,7 @@ const ApplyMSMERegistration = ({ isLoggedIn, isModal = false, onClose, planProp 
     const [isSuccess, setIsSuccess] = useState(false);
     const [error, setError] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // NIC Options Simulation
     const nicOptions = [
@@ -179,45 +181,66 @@ const ApplyMSMERegistration = ({ isLoggedIn, isModal = false, onClose, planProp 
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email || 'guest@example.com';
+        const phone = userObj?.phone || formData.mobileNumber || '';
 
-            // Prepare MSME Specific Form Data Structure
-            const msmeSpecificData = {
-                ...formData,
-                maleEmployees: parseInt(formData.maleEmployees) || 0,
-                femaleEmployees: parseInt(formData.femaleEmployees) || 0,
-                investmentPlantMachinery: parseFloat(formData.investmentPlantMachinery) || 0,
-                turnover: parseFloat(formData.turnover) || 0,
-                nicCodes: JSON.stringify(formData.nicCodes),
-                selectedPlan: billDetails.planName
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${billDetails.planName} - MSME Registration`,
+            prefill: {
+                name: formData.applicantName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            const finalPayload = {
-                submissionId: `MSME-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.email || 'guest@example.com',
-                plan: plan,
-                amountPaid: billDetails.total,
-                status: "PAYMENT_SUCCESSFUL",
-                formData: msmeSpecificData,
-                documents: docsList,
-                paymentDetails: billDetails
-            };
+                    // Prepare MSME Specific Form Data Structure
+                    const msmeSpecificData = {
+                        ...formData,
+                        maleEmployees: parseInt(formData.maleEmployees) || 0,
+                        femaleEmployees: parseInt(formData.femaleEmployees) || 0,
+                        investmentPlantMachinery: parseFloat(formData.investmentPlantMachinery) || 0,
+                        turnover: parseFloat(formData.turnover) || 0,
+                        nicCodes: JSON.stringify(formData.nicCodes),
+                        selectedPlan: billDetails.planName
+                    };
 
-            await submitMSMERegistration(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error(error);
-            setError("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const finalPayload = {
+                        submissionId: `MSME-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: plan,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: msmeSpecificData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitMSMERegistration(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    console.error(error);
+                    setError("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     // Helpers for NIC Selection
@@ -446,9 +469,9 @@ const ApplyMSMERegistration = ({ isLoggedIn, isModal = false, onClose, planProp 
                             <div className="border-t pt-2 mt-2 flex justify-between items-end"><span className="text-gray-500 font-bold">Total</span><span className="text-3xl font-bold text-navy">₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
 
-                        <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-4 bg-gradient-to-r from-bronze to-yellow-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
-                            {isSubmitting ? 'Processing...' : `Pay ₹${billDetails.total} & Submit`}
-                            {!isSubmitting && <Lock size={18} />}
+                        <button onClick={submitApplication} disabled={isSubmitting || isPaymentProcessing} className="w-full py-4 bg-gradient-to-r from-bronze to-yellow-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
+                            {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : `Pay ₹${billDetails.total} & Submit`}
+                            {!(isSubmitting || isPaymentProcessing) && <Lock size={18} />}
                         </button>
                     </div>
                 );

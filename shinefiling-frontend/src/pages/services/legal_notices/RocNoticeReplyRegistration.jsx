@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import { uploadFile } from '../../../utils/uploadFile';
 import { submitRocNoticeReply } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const RocNoticeReplyRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     useEffect(() => {
         // Login check removed to allow manual entry if user logged out
@@ -78,29 +80,51 @@ const RocNoticeReplyRegistration = ({ isLoggedIn, isModal = false, planProp, onC
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const uploadedDocs = [];
-            for (const file of selectedFiles) {
-                const url = await uploadFile(file);
-                uploadedDocs.push({ type: "ROC_NOTICE", filename: file.name, fileUrl: url });
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail;
+        const phone = userObj?.mobile || '';
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ROC Notice Reply - ${plans[selectedPlan].title}`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const uploadedDocs = [];
+                    for (const file of selectedFiles) {
+                        const url = await uploadFile(file);
+                        uploadedDocs.push({ type: "ROC_NOTICE", filename: file.name, fileUrl: url });
+                    }
+                    const finalPayload = {
+                        submissionId: `ROC-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        formData: formData,
+                        documents: uploadedDocs,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    await submitRocNoticeReply(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
             }
-            const finalPayload = {
-                submissionId: `ROC-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: formData.userEmail,
-                formData: formData,
-                documents: uploadedDocs,
-                amountPaid: plans[selectedPlan].price,
-                status: "INITIATED"
-            };
-            await submitRocNoticeReply(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            alert(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        });
     };
 
     if (isModal) {
@@ -312,8 +336,8 @@ const RocNoticeReplyRegistration = ({ isLoggedIn, isModal = false, planProp, onC
                         <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
                             <input type="checkbox" checked={isTermsAccepted || false} onChange={(e) => setIsTermsAccepted(e.target.checked)} /> I Accept Terms & Conditions
                         </label>
-                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
-                            {isSubmitting ? 'Processing...' : 'Pay & Submit'}
+                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
                         </button>
                     </div>
                 );

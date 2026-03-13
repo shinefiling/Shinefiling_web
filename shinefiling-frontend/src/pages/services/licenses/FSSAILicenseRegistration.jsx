@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,6 +6,7 @@ import {
     ArrowLeft, ArrowRight, IndianRupee, MapPin, Store, Building, Globe, Zap, AlertTriangle, BookOpen, Clock, Building2, Utensils, ClipboardList, CreditCard, X, Shield, Activity, Award, RefreshCw
 } from 'lucide-react';
 import { uploadFile, submitFssaiLicense } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const validatePlan = (plan) => {
     return ['basic', 'state', 'central', 'renewal', 'advisory', 'modification'].includes(plan?.toLowerCase()) ? plan.toLowerCase() : 'basic';
@@ -51,6 +52,8 @@ const FSSAILicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
     const [isSuccess, setIsSuccess] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [errors, setErrors] = useState({});
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // Auto-calculate license type based on turnover input
     useEffect(() => {
@@ -132,32 +135,54 @@ const FSSAILicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = {
-                submissionId: `FSSAI-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                plan: licenseType,
-                amountPaid: billDetails.total,
-                businessName: formData.businessName,
-                businessType: formData.businessType,
-                businessCategory: formData.foodCategory,
-                annualTurnover: parseFloat(formData.turnover),
-                validityYears: parseInt(formData.validityYears),
-                licenseType: licenseType.toUpperCase(),
-                status: "PAYMENT_SUCCESSFUL",
-                formData: formData,
-                documents: docsList
-            };
-            await submitFssaiLicense(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail || "guest@example.com";
+        const phone = userObj?.phone || formData.userPhone || "9999999999";
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${pricing[licenseType]?.title} - FSSAI`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
+                    const finalPayload = {
+                        submissionId: `FSSAI-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: licenseType,
+                        amountPaid: billDetails.total,
+                        businessName: formData.businessName,
+                        businessType: formData.businessType,
+                        businessCategory: formData.foodCategory,
+                        annualTurnover: parseFloat(formData.turnover),
+                        validityYears: parseInt(formData.validityYears),
+                        licenseType: licenseType.toUpperCase(),
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    await submitFssaiLicense(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -269,8 +294,12 @@ const FSSAILicenseRegistration = ({ isLoggedIn, isModal = false, planProp, onClo
                             <div className="flex justify-between text-sm text-gray-600"><span>GST (9%)</span><span className="font-bold">₹{billDetails.gst.toLocaleString()}</span></div>
                             <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                         </div>
-                        <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
-                            {isSubmitting ? 'Processing...' : 'Pay & Submit'}
+                        <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                            <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                            I Accept Terms & Conditions
+                        </label>
+                        <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                            {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Pay & Submit'}
                         </button>
                     </div>
                 );

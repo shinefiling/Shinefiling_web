@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,6 +6,8 @@ import {
     ArrowLeft, ArrowRight, IndianRupee, MapPin, HardHat, Building, AlertTriangle, X, Shield, User, Check
 } from 'lucide-react';
 import { uploadFile, submitLabourLicense } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
+import { useMemo } from 'react';
 
 const LabourLicenseRegistration = ({ isLoggedIn, onClose, isModal = false, planProp }) => {
     const [searchParams] = useSearchParams();
@@ -16,6 +18,8 @@ const LabourLicenseRegistration = ({ isLoggedIn, onClose, isModal = false, planP
     const [isSuccess, setIsSuccess] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [errors, setErrors] = useState({});
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
     const [uploadingFiles, setUploadingFiles] = useState({});
 
     const [formData, setFormData] = useState({
@@ -39,7 +43,23 @@ const LabourLicenseRegistration = ({ isLoggedIn, onClose, isModal = false, planP
     };
 
     const currentPricing = pricing[planProp] || pricing.license;
-    const price = currentPricing.price;
+    
+    const billDetails = useMemo(() => {
+        const basePrice = currentPricing.price;
+        const platformFee = Math.round(basePrice * 0.03);
+        const tax = Math.round(basePrice * 0.03);
+        const gst = Math.round(basePrice * 0.09);
+
+        return {
+            base: basePrice,
+            platformFee,
+            tax,
+            gst,
+            total: basePrice + platformFee + tax + gst
+        };
+    }, [currentPricing]);
+
+    const price = billDetails.total;
 
     // Protect Route
     useEffect(() => {
@@ -111,32 +131,54 @@ const LabourLicenseRegistration = ({ isLoggedIn, onClose, isModal = false, planP
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        setApiError(null);
-        try {
-            const finalPayload = {
-                submissionId: `LABOUR-${Date.now()}`,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                plan: "standard",
-                amountPaid: price,
-                contractorName: formData.contractorName,
-                state: formData.state,
-                numberOfLabourers: parseInt(formData.numberOfLabourers),
-                status: "PAYMENT_SUCCESSFUL",
-                formData: {
-                    ...formData,
-                    numberOfWorkers: parseInt(formData.numberOfLabourers)
-                },
-                documents: formData.uploadedDocuments
-            };
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || "guest@example.com";
+        const phone = userObj?.phone || "9999999999";
 
-            await submitLabourLicense(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            setApiError(error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${currentPricing.title} - Labour License`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                setApiError(null);
+                try {
+                    const finalPayload = {
+                        submissionId: `LABOUR-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        plan: planProp || "license",
+                        amountPaid: billDetails.total,
+                        contractorName: formData.contractorName,
+                        state: formData.state,
+                        numberOfLabourers: parseInt(formData.numberOfLabourers),
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: {
+                            ...formData,
+                            numberOfWorkers: parseInt(formData.numberOfLabourers)
+                        },
+                        documents: formData.uploadedDocuments,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    await submitLabourLicense(finalPayload);
+                    setIsSuccess(true);
+                } catch (error) {
+                    setApiError(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     // --- MODAL LAYOUT: SPLIT VIEW (Left Sidebar + Right Content) ---
@@ -164,16 +206,20 @@ const LabourLicenseRegistration = ({ isLoggedIn, onClose, isModal = false, planP
                             <div className="space-y-3 pt-4 border-t border-white/10 relative z-10">
                                 <div className="flex justify-between items-center text-xs group">
                                     <span className="text-gray-300 group-hover:text-white transition-colors">Service Fee</span>
-                                    <span className="text-white font-medium font-mono">₹{price.toLocaleString()}</span>
+                                    <span className="text-white font-medium font-mono">₹{billDetails.base.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs group">
-                                    <span className="text-gray-300 group-hover:text-white transition-colors">Govt Fee (Actuals)</span>
-                                    <span className="text-white font-medium font-mono">₹0</span>
+                                    <span className="text-gray-300 group-hover:text-white transition-colors">Platform & Tax</span>
+                                    <span className="text-white font-medium font-mono">₹{(billDetails.platformFee + billDetails.tax).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs group">
+                                    <span className="text-gray-300 group-hover:text-white transition-colors">GST (9%)</span>
+                                    <span className="text-white font-medium font-mono">₹{billDetails.gst.toLocaleString()}</span>
                                 </div>
                                 <div className="h-px bg-white/10 my-2"></div>
                                 <div className="flex justify-between items-end">
                                     <span className="text-[11px] font-bold text-[#ED6E3F] uppercase tracking-wider">Total Payable</span>
-                                    <span className="text-xl font-bold text-white leading-none">₹{price.toLocaleString()}</span>
+                                    <span className="text-xl font-bold text-white leading-none">₹{billDetails.total.toLocaleString()}</span>
                                 </div>
                             </div>
 
@@ -354,12 +400,18 @@ const LabourLicenseRegistration = ({ isLoggedIn, onClose, isModal = false, planP
                                         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 text-center">
                                             <IndianRupee size={32} className="mx-auto mb-4 text-green-600" />
                                             <h2 className="text-xl font-bold text-navy mb-4">Payment Summary</h2>
-                                            <div className="bg-slate-50 p-4 rounded-xl mb-6 space-y-2 text-sm">
-                                                <div className="flex justify-between"><span>Service Fee</span><span className="font-bold">₹{price.toLocaleString()}</span></div>
-                                                <div className="flex justify-between text-gray-600"><span>Govt Fee</span><span className="font-bold">Actuals</span></div>
-                                                <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total amount</span><span>₹{price.toLocaleString()}</span></div>
+                                            <div className="bg-slate-50 p-4 rounded-xl mb-6 space-y-2 text-sm text-left">
+                                                <div className="flex justify-between"><span>Base Fee</span><span className="font-bold">₹{billDetails.base.toLocaleString()}</span></div>
+                                                <div className="flex justify-between"><span>Taxes & Platform</span><span className="font-bold">₹{(billDetails.total - billDetails.base).toLocaleString()}</span></div>
+                                                <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total amount</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                                             </div>
-                                            <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">Pay & Submit</button>
+                                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                                I Accept Terms & Conditions
+                                            </label>
+                                            <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                                                {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Pay & Submit'}
+                                            </button>
                                         </div>
                                     </motion.div>
                                 )}
@@ -508,12 +560,18 @@ const LabourLicenseRegistration = ({ isLoggedIn, onClose, isModal = false, planP
                                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 text-center">
                                     <IndianRupee size={32} className="mx-auto mb-4 text-green-600" />
                                     <h2 className="text-xl font-bold text-navy mb-4">Payment Summary</h2>
-                                    <div className="bg-slate-50 p-4 rounded-xl mb-6 space-y-2 text-sm">
-                                        <div className="flex justify-between"><span>Service Fee</span><span className="font-bold">₹{price.toLocaleString()}</span></div>
-                                        <div className="flex justify-between text-gray-600"><span>Govt Fee</span><span className="font-bold">Actuals</span></div>
-                                        <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total amount</span><span>₹{price.toLocaleString()}</span></div>
+                                    <div className="bg-slate-50 p-4 rounded-xl mb-6 space-y-2 text-sm text-left">
+                                        <div className="flex justify-between"><span>Base Fee</span><span className="font-bold">₹{billDetails.base.toLocaleString()}</span></div>
+                                        <div className="flex justify-between"><span>Taxes & Platform</span><span className="font-bold">₹{(billDetails.total - billDetails.base).toLocaleString()}</span></div>
+                                        <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total amount</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                                     </div>
-                                    <button onClick={submitApplication} disabled={isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">Pay & Submit</button>
+                                    <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                        <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                        I Accept Terms & Conditions
+                                    </label>
+                                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#ED6E3F] text-white font-bold rounded-xl disabled:opacity-50">
+                                        {isSubmitting || isPaymentProcessing ? 'Authorizing Payment...' : 'Pay & Submit'}
+                                    </button>
                                 </div>
                             </motion.div>
                         )}

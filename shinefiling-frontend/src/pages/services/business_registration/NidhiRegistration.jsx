@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { submitNidhiRegistration, uploadFile } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 // --- CONSTANTS & HELPERS MOVED OUTSIDE COMPONENT ---
 const validatePlan = (plan) => {
@@ -74,6 +75,7 @@ const NidhiRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) =
     const [isSuccess, setIsSuccess] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // Memoize bill details
     const billDetails = useMemo(() => {
@@ -167,27 +169,53 @@ const NidhiRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) =
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(files).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = {
-                submissionId: `NIDHI-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.userEmail || formData.directors[0].email,
-                userPhone: JSON.parse(localStorage.getItem('user'))?.phone || formData.userPhone,
-                formData: formData,
-                documents: docsList,
-                paymentDetails: billDetails,
-                status: "PAYMENT_SUCCESSFUL"
-            };
-            const response = await submitNidhiRegistration(finalPayload);
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) {
-            alert("Failed to submit. " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.userEmail || formData.directors[0].email;
+        const phone = userObj?.phone || formData.userPhone || formData.directors[0].mobile;
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Nidhi Registration`,
+            prefill: {
+                name: formData.directors[0]?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(files).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
+
+                    const finalPayload = {
+                        submissionId: `NIDHI-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        },
+                        status: "PAYMENT_SUCCESSFUL"
+                    };
+
+                    const apiResponse = await submitNidhiRegistration(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (err) {
+                    alert("Submission failed: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -289,7 +317,9 @@ const NidhiRegistration = ({ isLoggedIn, isModal = false, planProp, onClose }) =
                         <div className="flex justify-between text-lg font-black text-navy border-t pt-2 mt-2"><span>Total</span><span>₹{billDetails.total.toLocaleString()}</span></div>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center"><input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} /> I Accept Terms & Conditions</label>
-                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">Pay & Submit</button>
+                    <button onClick={submitApplication} disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing} className="w-full py-3 bg-[#043E52] text-white font-bold rounded-xl disabled:opacity-50">
+                        {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                    </button>
                 </div>
             );
         }

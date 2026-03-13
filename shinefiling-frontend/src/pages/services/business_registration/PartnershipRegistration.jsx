@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { submitPartnershipRegistration, uploadFile } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 
 
@@ -128,6 +129,7 @@ const PartnershipRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [automationPayload, setAutomationPayload] = useState(null);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     // Memoize bill details
     const billDetails = useMemo(() => {
@@ -199,34 +201,52 @@ const PartnershipRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
     };
 
     const handleSubmit = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(files).map(([k, v]) => ({
-                id: k,
-                filename: v.name,
-                fileUrl: v.fileUrl
-            }));
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.partners[0].email;
+        const phone = userObj?.phone || formData.partners[0].mobile;
 
-            const finalPayload = {
-                submissionId: `PF-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || formData.partners[0].email,
-                formData: formData,
-                documents: docsList,
-                status: "PAYMENT_SUCCESSFUL"
-            };
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${plans[selectedPlan]?.title} - Partnership Registration`,
+            prefill: {
+                name: formData.partners[0]?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(files).map(([k, v]) => ({
+                        id: k,
+                        filename: v.name,
+                        fileUrl: v.fileUrl
+                    }));
 
-            // PartnershipFirmController expects Raw JSON
-            const response = await submitPartnershipRegistration(finalPayload);
+                    const finalPayload = {
+                        submissionId: `PF-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        formData: formData,
+                        documents: docsList,
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        },
+                        status: "PAYMENT_SUCCESSFUL"
+                    };
 
-            setAutomationPayload(response);
-            setIsSuccess(true);
-        } catch (error) {
-            console.error("Submission failed", error);
-            alert("Failed to submit. " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+                    const apiResponse = await submitPartnershipRegistration(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (err) {
+                    alert("Submission failed: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -378,9 +398,9 @@ const PartnershipRegistration = ({ isLoggedIn, isModal = false, planProp, onClos
                             </div>
                             <p className="text-[10px] text-gray-400 text-right mt-1">+ Govt Fees (Later)</p>
                         </div>
-                        <button onClick={handleSubmit} disabled={isSubmitting} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2">
-                            {isSubmitting ? 'Processing...' : 'Pay & Submit'}
-                            {!isSubmitting && <ArrowRight size={18} />}
+                        <button onClick={handleSubmit} disabled={isSubmitting || isPaymentProcessing} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 hover:shadow-xl transition flex items-center justify-center gap-2">
+                            {isSubmitting || isPaymentProcessing ? 'Processing Payment...' : 'Pay & Submit'}
+                            {!isSubmitting && !isPaymentProcessing && <ArrowRight size={18} />}
                         </button>
                     </div>
                 );

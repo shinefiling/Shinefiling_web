@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import {
     X, Info, Shield, Zap, Search, ClipboardList, Clock, CreditCard
 } from 'lucide-react';
 import { uploadFile, submitChangeRegisteredOffice } from '../../../api';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 const validatePlan = (plan) => {
     return ['same_city', 'same_roc', 'different_state'].includes(plan?.toLowerCase()) ? plan.toLowerCase() : 'same_city';
@@ -48,7 +49,10 @@ const ChangeRegisteredOfficeRegistration = ({ isLoggedIn, isModal = false, planP
     const [uploadedFiles, setUploadedFiles] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const [automationPayload, setAutomationPayload] = useState(null);
     const [errors, setErrors] = useState({});
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const billDetails = useMemo(() => {
         const plan = plans[selectedPlan] || plans.same_city;
@@ -110,25 +114,48 @@ const ChangeRegisteredOfficeRegistration = ({ isLoggedIn, isModal = false, planP
     };
 
     const submitApplication = async () => {
-        setIsSubmitting(true);
-        try {
-            const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
-            const finalPayload = {
-                submissionId: `ROCOFFICE-${Date.now()}`,
-                plan: selectedPlan,
-                userEmail: JSON.parse(localStorage.getItem('user'))?.email || 'guest@example.com',
-                formData: formData,
-                documents: docsList,
-                amountPaid: billDetails.total,
-                status: "PAYMENT_SUCCESSFUL"
-            };
-            await submitChangeRegisteredOffice(finalPayload);
-            setIsSuccess(true);
-        } catch (error) {
-            alert("Submission error: " + error.message);
-        } finally {
-            setIsSubmitting(false);
-        }
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || 'guest@example.com';
+        const phone = userObj?.phone || '';
+
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for Change Registered Office - ${plans[selectedPlan]?.title}`,
+            prefill: {
+                name: userObj?.name || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setIsSubmitting(true);
+                try {
+                    const docsList = Object.entries(uploadedFiles).map(([k, v]) => ({ id: k, filename: v.name, fileUrl: v.fileUrl }));
+                    const finalPayload = {
+                        submissionId: `ROCOFFICE-${Date.now()}`,
+                        plan: selectedPlan,
+                        userEmail: email,
+                        userPhone: phone,
+                        formData: formData,
+                        documents: docsList,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+                    const apiResponse = await submitChangeRegisteredOffice(finalPayload);
+                    setAutomationPayload(apiResponse);
+                    setIsSuccess(true);
+                } catch (error) {
+                    alert("Submission error: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     const renderStepContent = () => {
@@ -257,13 +284,18 @@ const ChangeRegisteredOfficeRegistration = ({ isLoggedIn, isModal = false, planP
                                 </div>
                             </div>
 
+                            <label className="flex items-center gap-2 text-xs text-gray-500 mb-6 justify-center">
+                                <input type="checkbox" checked={isTermsAccepted} onChange={(e) => setIsTermsAccepted(e.target.checked)} />
+                                I Accept Terms & Conditions
+                            </label>
+
                             <button
                                 onClick={submitApplication}
-                                disabled={isSubmitting}
-                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-navy/30 hover:bg-black transition-all flex items-center justify-center gap-3"
+                                disabled={!isTermsAccepted || isSubmitting || isPaymentProcessing}
+                                className="w-full py-5 bg-navy text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-navy/30 hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                             >
-                                {isSubmitting ? 'PROCESSING COMPLIANCE...' : 'AUTHORIZE OFFICE CHANGE'}
-                                {!isSubmitting && <ArrowRight size={20} />}
+                                {isSubmitting || isPaymentProcessing ? 'PROCESSING PAYMENT...' : 'AUTHORIZE OFFICE CHANGE'}
+                                {!isSubmitting && !isPaymentProcessing && <ArrowRight size={20} />}
                             </button>
                         </div>
                     </div>

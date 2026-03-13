@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ArrowLeft, Upload, CheckCircle, AlertCircle, FileText, ChevronRight,
@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { submitTanPan } from '../../../api';
 import { uploadFile } from '../../../utils/uploadFile';
+import { useRazorpay } from '../../../hooks/useRazorpay';
 
 // Pricing Configuration
 const pricing = {
@@ -29,6 +30,7 @@ const ApplyTanPan = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+    const { processPayment, isProcessing: isPaymentProcessing } = useRazorpay();
 
     const [formData, setFormData] = useState({
         applicantName: '',
@@ -139,67 +141,89 @@ const ApplyTanPan = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
     };
 
     const handleSubmit = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const uploadedDocsList = [];
+        const userObj = JSON.parse(localStorage.getItem('user'));
+        const email = userObj?.email || formData.email || 'guest@example.com';
+        const phone = userObj?.phone || formData.mobile || '';
 
-            // Upload Documents
-            const uploadPromises = Object.entries(documents).map(async ([key, file]) => {
-                if (file) {
-                    try {
-                        const uploadRes = await uploadFile(file, 'tan-pan');
-                        return {
-                            id: key,
-                            filename: uploadRes.originalName || file.name,
-                            fileUrl: uploadRes.fileUrl,
-                            type: key
-                        };
-                    } catch (e) {
-                        console.error(`Failed to upload ${key}`, e);
+        processPayment({
+            amount: billDetails.total,
+            description: `Payment for ${billDetails.planName} - PAN/TAN Service`,
+            prefill: {
+                name: formData.applicantName || "Customer",
+                email: email,
+                contact: phone
+            },
+            onSuccess: async (response) => {
+                setLoading(true);
+                setError(null);
+                try {
+                    const uploadedDocsList = [];
+
+                    // Upload Documents
+                    const uploadPromises = Object.entries(documents).map(async ([key, file]) => {
+                        if (file) {
+                            try {
+                                const uploadRes = await uploadFile(file, 'tan-pan');
+                                return {
+                                    id: key,
+                                    filename: uploadRes.originalName || file.name,
+                                    fileUrl: uploadRes.fileUrl,
+                                    type: key
+                                };
+                            } catch (e) {
+                                console.error(`Failed to upload ${key}`, e);
+                                return null;
+                            }
+                        }
                         return null;
+                    });
+
+                    const uploadedResults = await Promise.all(uploadPromises);
+                    uploadedResults.forEach(doc => {
+                        if (doc) uploadedDocsList.push(doc);
+                    });
+
+                    // Prepare Payload
+                    const submissionPayload = {
+                        submissionId: `TP-${Date.now()}`,
+                        userEmail: email,
+                        userPhone: phone,
+                        serviceType: plan,
+                        amountPaid: billDetails.total,
+                        status: "PAYMENT_SUCCESSFUL",
+                        formData: {
+                            ...formData,
+                            planTitle: billDetails.planName
+                        },
+                        documents: uploadedDocsList,
+                        createdAt: new Date().toISOString(),
+                        paymentDetails: {
+                            ...billDetails,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature
+                        }
+                    };
+
+                    // API Call
+                    await submitTanPan(submissionPayload);
+
+                    // Redirect
+                    if (isModal) {
+                        onClose();
+                        navigate('/dashboard?tab=orders');
+                    } else {
+                        navigate('/dashboard?tab=orders');
                     }
+
+                } catch (err) {
+                    console.error("Submission Error", err);
+                    setError(err.message || "Failed to submit application. Please try again.");
+                } finally {
+                    setLoading(false);
                 }
-                return null;
-            });
-
-            const uploadedResults = await Promise.all(uploadPromises);
-            uploadedResults.forEach(doc => {
-                if (doc) uploadedDocsList.push(doc);
-            });
-
-            // Prepare Payload
-            const submissionPayload = {
-                submissionId: `TP-${Date.now()}`,
-                userEmail: formData.email,
-                serviceType: plan,
-                amountPaid: billDetails.total,
-                status: "INITIATED",
-                formData: {
-                    ...formData,
-                    planTitle: billDetails.planName
-                },
-                documents: uploadedDocsList,
-                createdAt: new Date().toISOString()
-            };
-
-            // API Call
-            await submitTanPan(submissionPayload);
-
-            // Redirect
-            if (isModal) {
-                onClose();
-                navigate('/dashboard?tab=orders');
-            } else {
-                navigate('/dashboard?tab=orders');
             }
-
-        } catch (err) {
-            console.error("Submission Error", err);
-            setError(err.message || "Failed to submit application. Please try again.");
-        } finally {
-            setLoading(false);
-        }
+        });
     };
 
     const steps = ['Service & Contact', 'Applicant Details', 'Documents', 'Review', 'Payment'];
@@ -429,9 +453,9 @@ const ApplyTanPan = ({ isLoggedIn, isModal = false, onClose, planProp }) => {
                             <span>I Accept <span className="text-[#043E52] font-bold underline">Terms & Conditions</span></span>
                         </label>
 
-                        <button onClick={handleSubmit} disabled={loading || !isTermsAccepted} className="w-full py-4 bg-gradient-to-r from-[#043E52] to-[#064e66] text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                            {loading ? 'Processing...' : `Pay ₹${billDetails.total} & Submit`}
-                            {!loading && <Lock size={18} />}
+                        <button onClick={handleSubmit} disabled={loading || isPaymentProcessing || !isTermsAccepted} className="w-full py-4 bg-gradient-to-r from-[#043E52] to-[#064e66] text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {loading || isPaymentProcessing ? 'Authorizing Payment...' : `Pay ₹${billDetails.total} & Submit`}
+                            {!(loading || isPaymentProcessing) && <Lock size={18} />}
                         </button>
                     </div>
                 );
