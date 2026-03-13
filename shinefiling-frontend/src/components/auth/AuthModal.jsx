@@ -482,7 +482,11 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login', initialRole = null,
                                                                      <option value="">Select Profession</option>
                                                                      <option value="CA">Chartered Accountant (CA)</option>
                                                                      <option value="CS">Company Secretary (CS)</option>
-                                                                     <option value="LAWYER">Advocate / Lawyer</option>
+                                                                     <option value="CMA">Cost Accountant (CMA)</option>
+<option value="CFA">Chartered Financial Analyst (CFA)</option>
+<option value="CFP">Certified Financial Planner (CFP)</option>
+<option value="DISA">DISA (ICAI)</option>
+<option value="LAWYER">Advocate / Lawyer</option>
                                                                      <option value="TAX_CONSULTANT">Tax Consultant</option>
                                                                      <option value="BUSINESS_CONSULTANT">Business Consultant</option>
                                                                      <option value="OTHER">Other Professional</option>

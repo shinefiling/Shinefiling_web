@@ -7,7 +7,7 @@ import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
 import {
     FileText, Shield, User, CreditCard, Award,
-    CheckCircle2, AlertCircle, Upload, ChevronRight,
+    CheckCircle2, AlertCircle, Upload, ChevronRight, ChevronDown,
     ChevronLeft, Lock, FileSignature, Info, Eye,
     ClipboardCheck, Printer, Download, QrCode,
     Building2, Briefcase, Landmark, Camera,
@@ -51,6 +51,7 @@ const CaKyc = ({ user, onComplete }) => {
         selfie: null,
 
         // 3. CA Qualification
+        professionalType: user.specialization || 'CA', // CA, CS, CMA, CFA, CFP, DISA
         caMembershipNumber: '',
         copNumber: '',
         yearOfQualification: '',
@@ -160,17 +161,28 @@ const CaKyc = ({ user, onComplete }) => {
     const steps = [
         { id: 1, title: 'Profile Info', icon: User, desc: 'Experience & Practice' },
         { id: 2, title: 'Identity', icon: CreditCard, desc: 'Aadhar & PAN' },
-        { id: 3, title: 'Professional', icon: Award, desc: 'ICAI Credentials' },
+        { id: 3, title: 'Professional', icon: Award, desc: `${formData.professionalType || 'CA'} Credentials` },
         { id: 4, title: 'Firm & Payout', icon: Landmark, desc: 'Bank & Firm Details' },
         { id: 5, title: 'Expertise', icon: Briefcase, desc: 'Services & Profile' },
         { id: 6, title: 'Compliance', icon: ShieldCheck, desc: 'Legal Agreements' },
         { id: 7, title: 'Preview', icon: FileSearch, desc: 'Review & Submit' }
     ];
 
-    const serviceOptions = [
-        'ITR Filing', 'GST Filing', 'Audit', 'Company Registration',
-        'Compliance', 'Tax Planning', 'ROC Filing', 'Financial Advisory'
-    ];
+    const getServiceOptions = () => {
+        const baseServices = ['Compliance', 'Drafting', 'Consultation'];
+        
+        switch(formData.professionalType) {
+            case 'CA': return [...baseServices, 'ITR Filing', 'GST Filing', 'Statutory Audit', 'Tax Audit', 'Company Registration', 'Tax Planning'];
+            case 'CS': return [...baseServices, 'ROC Filing', 'LLP Annual Filing', 'Secretarial Audit', 'NCLT Representation', 'FDI Compliance', 'IPR Advisory'];
+            case 'CMA': return [...baseServices, 'Cost Audit', 'Inventory Valuation', 'CMA Data Preparation', 'Budgeting & Control', 'Project Financing'];
+            case 'CFA': return [...baseServices, 'Investment Advisory', 'Portfolio Management', 'Business Valuation', 'Mergers & Acquisitions', 'Financial Modeling'];
+            case 'CFP': return [...baseServices, 'Strategic Planning', 'Retirement Planning', 'Estate Planning', 'Risk Management', 'Insurance Planning'];
+            case 'DISA': return [...baseServices, 'System Audit', 'Cyber Security Audit', 'Database Auditing', 'IT Governance', 'Risk Assessment'];
+            default: return ['ITR Filing', 'GST Filing', 'Audit', 'Company Registration', 'Compliance', 'Tax Planning', 'ROC Filing', 'Financial Advisory'];
+        }
+    };
+
+    const serviceOptions = getServiceOptions();
 
     const languageOptions = ['English', 'Tamil', 'Hindi', 'Malayalam', 'Telugu', 'Kannada'];
 
@@ -420,8 +432,8 @@ const CaKyc = ({ user, onComplete }) => {
         switch (step) {
             case 1: return formData.fullName && formData.city && formData.state && formData.yearsOfExperience;
             case 2: return formData.panNumber && formData.aadharNumber && formData.panCard && formData.aadharFront;
-            case 3: return formData.caMembershipNumber && formData.copNumber && formData.caCertificate;
-            case 4: return formData.accountNumber && formData.ifscCode && formData.cancelledCheque;
+            case 3: return formData.caMembershipNumber && formData.copNumber && formData.caCertificate && formData.copCertificate;
+            case 4: return formData.accountNumber && formData.ifscCode && formData.cancelledCheque && (formData.practiceType === 'Individual' || (formData.firmName && formData.firmPan && formData.firmRegistrationCertificate));
             case 5: return formData.servicesOffered.length > 0 && formData.aboutDescription.length > 20;
             case 6: return formData.agreeToTerms && formData.signatureFile;
             case 7: return true;
@@ -551,7 +563,7 @@ const CaKyc = ({ user, onComplete }) => {
             // Row 3: Professional Info
             doc.setTextColor(148, 163, 184);
             doc.setFontSize(7);
-            doc.text("CA MEMBERSHIP ID", 20, currentY);
+            doc.text(`${formData.professionalType || 'CA'} MEMBERSHIP ID`, 20, currentY);
             doc.setTextColor(15, 23, 42);
             doc.setFontSize(10);
             doc.text(formData.caMembershipNumber || '-', 20, currentY + 5);
@@ -578,6 +590,7 @@ const CaKyc = ({ user, onComplete }) => {
                 { l: "Identity: PAN & Aadhar", s: formData.panCard && formData.aadharFront ? "PASS" : "ABSENT" },
                 { l: "Professional: M.No & COP", s: formData.caCertificate && formData.copCertificate ? "PASS" : "ABSENT" },
                 { l: "Banking: Cancelled Cheque", s: formData.cancelledCheque ? "PASS" : "ABSENT" },
+                ...(formData.practiceType === 'Firm' ? [{ l: "Firm: Registration Doc", s: formData.firmRegistrationCertificate ? "PASS" : "ABSENT" }] : []),
                 { l: "Liveness: Face Mapping", s: formData.selfie ? "PASS" : "ABSENT" }
             ];
 
@@ -706,6 +719,27 @@ const CaKyc = ({ user, onComplete }) => {
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Professional Type</label>
+                                    <div className="relative group">
+                                        <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={18} />
+                                        <select
+                                            className="input-premium-refined !pl-14 font-bold appearance-none cursor-pointer"
+                                            value={formData.professionalType}
+                                            onChange={(e) => setFormData({ ...formData, professionalType: e.target.value })}
+                                        >
+                                            <option value="CA">Chartered Accountant (CA)</option>
+                                            <option value="CS">Company Secretary (CS)</option>
+                                            <option value="CMA">Cost and Management Accountant (CMA)</option>
+                                            <option value="CFA">Chartered Financial Analyst (CFA)</option>
+                                            <option value="CFP">Certified Financial Planner (CFP)</option>
+                                            <option value="DISA">DISA (ICAI)</option>
+                                        </select>
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDown size={14} />
+                                        </div>
+                                    </div>
+                                </div>
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Practice Type</label>
                                     <div className="flex gap-3">
@@ -949,19 +983,53 @@ const CaKyc = ({ user, onComplete }) => {
                                     <Award size={22} strokeWidth={2.5} />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold  uppercase tracking-tight">Professional Credentials</h3>
-                                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">ICAI Membership & Practice Authority</p>
+                                    <h3 className="text-lg font-bold  uppercase tracking-tight">{formData.professionalType} Credentials</h3>
+                                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">
+                                        {formData.professionalType === 'CA' ? 'ICAI Membership & Practice Authority' : 
+                                         formData.professionalType === 'CS' ? 'ICSI Membership & Practice Authority' : 
+                                         formData.professionalType === 'CMA' ? 'ICMAI Membership & Practice Authority' : 
+                                         'Professional Certification & Authority'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="bg-orange-50 dark:bg-orange-500/5 rounded-2xl p-4 border border-orange-100 dark:border-orange-500/10 flex items-start gap-4">
+                                <div className="p-2 bg-orange-500 text-white rounded-lg">
+                                    <Info size={16} />
+                                </div>
+                                <div>
+                                    <h4 className="text-[11px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Required Documents for {formData.professionalType}</h4>
+                                    <ul className="text-[10px] text-slate-600 dark:text-slate-400 space-y-1 font-medium">
+                                        {formData.professionalType === 'CA' && <>
+                                            <li>• ICAI Membership Certificate (Mandatory)</li>
+                                            <li>• Certificate of Practice (COP) Document</li>
+                                        </>}
+                                        {formData.professionalType === 'CS' && <>
+                                            <li>• ICSI Membership Certificate (Mandatory)</li>
+                                            <li>• Certificate of Practice (COP) Document</li>
+                                        </>}
+                                        {formData.professionalType === 'CMA' && <>
+                                            <li>• ICMAI Membership Certificate (Mandatory)</li>
+                                            <li>• Certificate of Practice (COP) Document</li>
+                                        </>}
+                                        {['CFA', 'CFP', 'DISA'].includes(formData.professionalType) && <>
+                                            <li>• Official Certification Document / Charter</li>
+                                            <li>• Proof of Membership Validity / License Card</li>
+                                        </>}
+                                    </ul>
                                 </div>
                             </div>
 
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Membership No.</label>
+                                        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">
+                                            {['CFA', 'CFP', 'DISA'].includes(formData.professionalType) ? 'Certificate ID' : 'Membership No.'}
+                                        </label>
                                         <div className="relative group">
                                             <Award className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={18} />
                                             <input
-                                                placeholder="6 Digits"
+                                                placeholder={formData.professionalType === 'CA' ? "6 Digits" : "ID / Member No"}
                                                 className="input-premium-refined !pl-14 font-bold"
                                                 value={formData.caMembershipNumber}
                                                 onChange={(e) => setFormData({ ...formData, caMembershipNumber: e.target.value })}
@@ -969,11 +1037,13 @@ const CaKyc = ({ user, onComplete }) => {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">COP Number</label>
+                                        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">
+                                            {['CFA', 'CFP', 'DISA'].includes(formData.professionalType) ? 'Validity Year' : 'COP Number'}
+                                        </label>
                                         <div className="relative group">
                                             <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={18} />
                                             <input
-                                                placeholder="5-6 Digits"
+                                                placeholder={['CFA', 'CFP', 'DISA'].includes(formData.professionalType) ? "YYYY" : "5-6 Digits"}
                                                 className="input-premium-refined !pl-14 font-bold"
                                                 value={formData.copNumber}
                                                 onChange={(e) => setFormData({ ...formData, copNumber: e.target.value })}
@@ -996,8 +1066,15 @@ const CaKyc = ({ user, onComplete }) => {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {[
-                                        { id: 'caCertificate', label: 'Membership Certificate' },
-                                        { id: 'copCertificate', label: 'COP Document' }
+                                        { 
+                                            id: 'caCertificate', 
+                                            label: ['CFA', 'CFP'].includes(formData.professionalType) ? 'Certification Document' : 
+                                                   formData.professionalType === 'DISA' ? 'DISA Certificate' : 'Membership Certificate' 
+                                        },
+                                        { 
+                                            id: 'copCertificate', 
+                                            label: ['CFA', 'CFP', 'DISA'].includes(formData.professionalType) ? 'Validity/License Proof' : 'COP Document' 
+                                        }
                                     ].map(doc => (
                                         <div key={doc.id} className="space-y-2">
                                             <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">{doc.label}</label>
@@ -1129,6 +1206,21 @@ const CaKyc = ({ user, onComplete }) => {
                                                 />
                                             </div>
                                         </div>
+                                        {formData.practiceType === 'Firm' && (
+                                            <div className="space-y-4 pt-2">
+                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Firm Registration Document</label>
+                                                <label className="flex items-center gap-4 p-5 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl border-dashed cursor-pointer hover:border-orange-500 transition-all group">
+                                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${formData.firmRegistrationCertificate ? 'bg-orange-500 text-white shadow-xl shadow-orange-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                                                        {formData.firmRegistrationCertificate ? <CheckCircle2 size={24} /> : <Upload size={24} />}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] font-bold text-slate-900 dark:text-white uppercase tracking-widest">Firm Partnership Deed / Reg Certificate</p>
+                                                        <p className="text-[9px] text-slate-400">{formData.firmRegistrationCertificate ? formData.firmRegistrationCertificate.name : 'Required for Firm accounts'}</p>
+                                                    </div>
+                                                    <input type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'firmRegistrationCertificate')} />
+                                                </label>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1248,10 +1340,10 @@ const CaKyc = ({ user, onComplete }) => {
 
                             <div className="space-y-4 max-h-[250px] overflow-y-auto pr-3 custom-scrollbar bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-100 dark:border-slate-700">
                                 {[
-                                    { title: '1. Professional Code of Conduct (ICAI Standards)', content: 'As an empanelled professional, you are strictly bound by the Chartered Accountants Act, 1949 and ICAI Code of Ethics. Any professional negligence, data leakage, or ethical breach will result in immediate debarment and mandatory reporting to the ICAI Disciplinary Committee.' },
+                                    { title: `1. Professional Code of Conduct`, content: `As an empanelled professional, you are strictly bound by the professional standards and Code of Ethics of your respective governing body (ICAI/ICSI/ICMAI etc). Any professional negligence, data leakage, or ethical breach will result in immediate debarment.` },
                                     { title: '2. Data Sovereignty & DPDP Act 2023 Compliance', content: 'In accordance with the Digital Personal Data Protection Act (2023), all client data accessed via ShineFiling must be processed only for the specified purpose. Unauthorized storage, processing, or distribution of client sensitive personal data (SPD) is a criminal offense punishable under Indian Law.' },
                                     { title: '3. Strict Non-Solicitation & Anti-Poaching', content: 'You are strictly prohibited from soliciting ShineFiling clients for direct engagement outside the platform for a period of 36 months post-termination. Circumventing the platform gateway (Platform Bypass) will invoke a penalty of ₹5,00,000 per instance or 10x the service value, whichever is higher.' },
-                                    { title: '4. Client Data Non-Extraction Policy', content: 'CAs are strictly prohibited from downloading, extracting, or taking screen captures of client proprietary business data (Sales, Vendor list, Bank statements) for personal or external use. Breach of this "Zero-Leak" policy invokes immediate termination and criminal litigation for Intellectual Property theft.' },
+                                    { title: '4. Client Data Non-Extraction Policy', content: 'Professionals are strictly prohibited from downloading, extracting, or taking screen captures of client proprietary business data (Sales, Vendor list, Bank statements) for personal or external use. Breach of this "Zero-Leak" policy invokes immediate termination and criminal litigation for Intellectual Property theft.' },
                                     { title: '5. Anti-Money Laundering (PMLA Act 2002)', content: 'Under the Prevention of Money Laundering Act, you are legally mandated to conduct "Know Your Client" (KYC) on the sources of funds for all cases handled. Failure to report suspicious financial activity makes you liable as an accessory to the offense.' },
                                     { title: '6. Confidentiality & Non-Disclosure (NDA)', content: 'All documents, case files, and proprietary platform workflows are strictly confidential. You shall not disclose any "Confidential Information" to any third party without prior written consent from ShineFiling and the respective client.' },
                                     { title: '7. Platform Fee & Remittance Structure', content: 'ShineFiling retains a 15% platform facilitation fee. Payouts are triggered 48 hours after successful client approval. All payments are subject to GST and TDS as per the prevailing Income Tax Department norms.' }
