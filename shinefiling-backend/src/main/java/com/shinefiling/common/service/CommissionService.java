@@ -3,6 +3,10 @@ package com.shinefiling.common.service;
 import com.shinefiling.common.model.Commission;
 import com.shinefiling.common.model.ServiceRequest;
 import com.shinefiling.common.repository.CommissionRepository;
+import com.shinefiling.common.repository.TransactionRepository;
+import com.shinefiling.common.repository.UserRepository;
+import com.shinefiling.common.model.User;
+import com.shinefiling.common.model.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,34 +18,56 @@ public class CommissionService {
     @Autowired
     private CommissionRepository commissionRepository;
 
+    @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
     public void processCommission(ServiceRequest request) {
-        if (request.getAssignedAgent() == null) {
-            return; // No agent assigned, no commission
+        if (request.getAssignedAgent() != null) {
+            Commission commission = new Commission();
+            commission.setAgent(request.getAssignedAgent());
+            commission.setServiceRequest(request);
+
+            Double amount = request.getAmount() != null ? request.getAmount() : 0.0;
+            Double commissionAmount = amount * 0.10; // 10% Flat
+
+            commission.setAmount(commissionAmount);
+            commission.setStatus("PENDING");
+            commission.setCreatedAt(LocalDateTime.now());
+
+            commissionRepository.save(commission);
+            System.out.println("Commission processed for Agent: " + request.getAssignedAgent().getEmail());
         }
 
-        // Check if commission already exists
-        // Assuming one commission per request for now
-        // Ideally CommissionRepository should have findByServiceRequest
-        // But since I can't easily see if it exists, I'll rely on business logic or
-        // simple check if I can add method to repo.
+        // Handle CA Payout
+        if (request.getAssignedCa() != null) {
+            processCaPayout(request);
+        }
+    }
 
-        // Let's implement a safe check if possible or just create new.
-        // Assuming this method is called once upon completion.
+    public void processCaPayout(ServiceRequest request) {
+        User ca = request.getAssignedCa();
+        if (ca == null) return;
 
-        Commission commission = new Commission();
-        commission.setAgent(request.getAssignedAgent());
-        commission.setServiceRequest(request);
+        java.math.BigDecimal amount = java.math.BigDecimal.valueOf(request.getBoundAmount() != null ? request.getBoundAmount() : 0.0);
 
-        // Commission Calculation Logic (e.g. 10% of amount)
-        Double amount = request.getAmount() != null ? request.getAmount() : 0.0;
-        Double commissionAmount = amount * 0.10; // 10% Flat
+        // Update Balance
+        ca.setWalletBalance(ca.getWalletBalance().add(amount));
+        userRepository.save(ca);
 
-        commission.setAmount(commissionAmount);
-        commission.setStatus("PENDING"); // Pending Payout
-        commission.setCreatedAt(LocalDateTime.now());
+        // Create Transaction Record
+        Transaction txn = new Transaction();
+        txn.setUser(ca);
+        txn.setType("CREDIT");
+        txn.setAmount(amount);
+        txn.setDescription("Earning for " + request.getServiceName() + " (Order #" + request.getId() + ")");
+        txn.setStatus("SUCCESS");
+        txn.setReferenceId(request.getId());
+        txn.setReferenceType("SERVICE_REQUEST");
+        transactionRepository.save(txn);
 
-        commissionRepository.save(commission);
-        System.out.println("Commission processed for Agent: " + request.getAssignedAgent().getEmail() + " Amount: "
-                + commissionAmount);
+        System.out.println("Wallet Balance updated for CA: " + ca.getEmail());
     }
 }

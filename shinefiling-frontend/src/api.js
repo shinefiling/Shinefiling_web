@@ -1698,6 +1698,22 @@ export const assignEmployeeToRequest = async (requestId, employeeId) => {
     return handleResponse(response);
 };
 
+export const getCaWalletTransactions = async (caId) => {
+    const response = await fetch(`${BASE_URL}/ca/${caId}/wallet/transactions`, {
+        headers: getAuthHeaders()
+    });
+    return handleResponse(response);
+};
+
+export const requestCaWithdrawal = async (caId, amount, remarks) => {
+    const response = await fetch(`${BASE_URL}/ca/${caId}/wallet/withdraw`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ amount, remarks })
+    });
+    return handleResponse(response);
+};
+
 // --- EMPLOYEE DASHBOARD APIs ---
 
 export const getEmployeeTasks = async (employeeId) => {

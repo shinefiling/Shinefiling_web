@@ -4,6 +4,8 @@ import com.shinefiling.common.model.ServiceRequest;
 import com.shinefiling.common.model.User;
 import com.shinefiling.common.repository.ServiceRequestRepository;
 import com.shinefiling.common.repository.UserRepository;
+import com.shinefiling.common.repository.TransactionRepository;
+import com.shinefiling.common.model.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +26,9 @@ public class CAController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private TransactionRepository transactionRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -226,5 +231,64 @@ public class CAController {
         serviceRequestRepository.save(request);
 
         return ResponseEntity.ok(Map.of("message", "Assigned to Employee", "request", request));
+    }
+
+    // Get Wallet Transactions
+    @GetMapping("/{caId}/wallet/transactions")
+    public ResponseEntity<?> getWalletTransactions(@PathVariable Long caId) {
+        User ca = userRepository.findById(caId).orElse(null);
+        if (ca == null)
+            return ResponseEntity.notFound().build();
+
+        List<Transaction> transactions = transactionRepository.findByUserOrderByCreatedAtDesc(ca);
+        return ResponseEntity.ok(transactions);
+    }
+
+    // Request Withdrawal
+    @PostMapping("/{caId}/wallet/withdraw")
+    public ResponseEntity<?> requestWithdrawal(@PathVariable Long caId, @RequestBody Map<String, Object> payload) {
+        User ca = userRepository.findById(caId).orElse(null);
+        if (ca == null)
+            return ResponseEntity.notFound().build();
+
+        if (!payload.containsKey("amount")) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Withdrawal amount is required"));
+        }
+
+        java.math.BigDecimal amount = new java.math.BigDecimal(payload.get("amount").toString());
+        if (amount.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid withdrawal amount"));
+        }
+
+        if (ca.getWalletBalance().compareTo(amount) < 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Insufficient wallet balance"));
+        }
+
+        // Deduct from Balance
+        ca.setWalletBalance(ca.getWalletBalance().subtract(amount));
+        userRepository.save(ca);
+
+        // Record Withdrawal Transaction
+        Transaction txn = new Transaction();
+        txn.setUser(ca);
+        txn.setType("DEBIT");
+        txn.setAmount(amount);
+        txn.setDescription("Withdrawal Request: " + (payload.containsKey("remarks") ? payload.get("remarks") : "Wallet Payout"));
+        txn.setStatus("PENDING"); // Admin needs to approve and pay
+        txn.setReferenceType("WITHDRAWAL");
+        transactionRepository.save(txn);
+
+        // Notify Admin
+        if (notificationService != null) {
+            notificationService.notifyAdmins("WITHDRAWAL_REQUEST", "New Withdrawal Request",
+                    "CA " + ca.getFullName() + " has requested a withdrawal of ₹" + amount,
+                    txn.getId().toString());
+        }
+
+        return ResponseEntity.ok(Map.of(
+            "message", "Withdrawal request submitted for Admin approval",
+            "transaction", txn,
+            "newBalance", ca.getWalletBalance()
+        ));
     }
 }

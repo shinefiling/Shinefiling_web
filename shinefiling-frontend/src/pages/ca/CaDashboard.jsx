@@ -1,9 +1,9 @@
-﻿
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    LayoutDashboard, Users, Briefcase, Bell, LogOut, Menu, X, Sun, Moon, Settings, MessageSquare, ChevronRight, Zap, Shield, Lock, ShieldCheck, Clock, CheckCircle
+    LayoutDashboard, Users, Briefcase, Bell, LogOut, Menu, X, Sun, Moon, Settings, MessageSquare, ChevronRight, Zap, Shield, Lock, ShieldCheck, Clock, CheckCircle, Wallet
 } from 'lucide-react';
 import {
     getCaRequests, respondToBoundAmount, getCaEmployees, createEmployee, assignEmployeeToRequest, getUserById,
@@ -14,6 +14,7 @@ import CaOverview from './views/CaOverview';
 import CaWorks from './views/CaWorks';
 import CaEmployees from './views/CaEmployees';
 
+import CaWallet from './views/CaWallet';
 import CaProfile from './views/CaProfile';
 import CaSupport from './views/CaSupport';
 import CaOpportunities from './views/CaOpportunities';
@@ -63,7 +64,7 @@ const CaDashboard = ({ onLogout }) => {
         {
             section: 'MAIN MENU',
             items: [
-                { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+                { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard, protected: true },
                 { id: 'kyc', label: 'KYC & Compliance', icon: ShieldCheck },
                 { id: 'opportunities', label: 'Marketplace', icon: Zap, protected: true },
                 { id: 'works', label: 'My Works', icon: Briefcase, protected: true },
@@ -71,8 +72,9 @@ const CaDashboard = ({ onLogout }) => {
             ]
         },
         {
-            section: 'ORGANIZATION',
+            section: 'FINANCE & TEAM',
             items: [
+                { id: 'wallet', label: 'Partner Wallet', icon: Wallet, protected: true },
                 { id: 'employees', label: 'My Team', icon: Users, protected: true },
             ]
         },
@@ -285,25 +287,28 @@ const CaDashboard = ({ onLogout }) => {
                             <Menu size={24} />
                         </button>
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white hidden sm:block">
-                            {sidebarConfig.flatMap(g => g.items).find(i => i.id === activeTab)?.label || 'Dashboard'}
+                            {activeTab === 'wallet' ? 'Partner Wallet' : (sidebarConfig.flatMap(g => g.items).find(i => i.id === activeTab)?.label || 'Dashboard')}
                         </h2>
                     </div>
 
-                    <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-4 pointer-events-none">
-                        <div className="flex flex-col items-center">
-                            <div className="flex items-center gap-2.5 px-6 py-2 bg-white dark:bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-300">
-                                <ShieldCheck size={16} className={user.kycStatus === 'VERIFIED' ? 'text-emerald-500' : 'text-amber-500'} />
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-0.5">Account Status:</span>
-                                <span className={`text-[11px] font-bold tracking-tight uppercase ${user.kycStatus === 'VERIFIED' ? 'text-emerald-500' : user.kycStatus === 'PENDING' ? 'text-amber-500' : 'text-rose-500'}`}>
+                    {/* Compact Status for Mobile/Tablet */}
+                    <div className="lg:hidden flex items-center justify-center absolute left-1/2 -translate-x-1/2">
+                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
+                    </div>
+
+
+
+                    <div className="flex items-center gap-2.5 ml-auto pr-2 relative">
+                        {/* Account Status Pill - Moved here to prevent overlap */}
+                        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl transition-all duration-300">
+                            <ShieldCheck size={14} className={user.kycStatus === 'VERIFIED' ? 'text-emerald-500' : 'text-amber-500'} />
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest hidden xl:block">Account Status:</span>
+                                <span className={`text-[10px] font-black tracking-tight uppercase ${user.kycStatus === 'VERIFIED' ? 'text-emerald-500' : user.kycStatus === 'PENDING' ? 'text-amber-500' : 'text-rose-500'}`}>
                                     {user.kycStatus || 'UNVERIFIED'}
                                 </span>
                             </div>
                         </div>
-                    </div>
-
-
-
-                    <div className="flex items-center gap-2 ml-auto pr-2 relative">
                         <div className="relative">
                             <button
                                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
@@ -424,6 +429,33 @@ const CaDashboard = ({ onLogout }) => {
                                 )}
                             </AnimatePresence>
                         </div>
+
+                        {/* Wallet Quick Access */}
+                        <button
+                            onClick={() => isKycVerified ? setActiveTab('wallet') : null}
+                            disabled={!isKycVerified}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 group
+                                ${activeTab === 'wallet' 
+                                    ? 'bg-[#F97316] text-white shadow-lg shadow-orange-500/20' 
+                                    : !isKycVerified
+                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed opacity-60 border border-slate-200 dark:border-slate-700'
+                                        : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-100/50 dark:border-emerald-800/30'
+                                }`}
+                        >
+                            <div className={`p-1 rounded-lg ${activeTab === 'wallet' ? 'bg-white/20' : !isKycVerified ? 'bg-slate-200 dark:bg-slate-700' : 'bg-emerald-100 dark:bg-emerald-900/50'}`}>
+                                {isKycVerified ? (
+                                    <Wallet size={16} className={activeTab === 'wallet' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'} />
+                                ) : (
+                                    <Lock size={16} className="text-slate-400" />
+                                )}
+                            </div>
+                            <div className="flex flex-col items-start leading-none pr-1">
+                                <span className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 opacity-70`}>{isKycVerified ? 'Wallet' : 'Locked'}</span>
+                                <span className="text-[12px] font-black tracking-tight">
+                                    ₹{Number(user?.walletBalance || 0).toLocaleString()}
+                                </span>
+                            </div>
+                        </button>
 
                         <button
                             onClick={() => setIsDarkMode(!isDarkMode)}
@@ -599,13 +631,13 @@ const CaDashboard = ({ onLogout }) => {
                                             }`}>
                                             <Shield size={40} className={isKycSubmitted ? 'animate-bounce' : 'animate-pulse'} />
                                         </div>
-                                        <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-3 tracking-tight font-roboto">
-                                            {isKycSubmitted ? 'Verification Under Review' : 'KYC Verification Required'}
+                                        <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-3 tracking-tighter font-roboto uppercase">
+                                            {isKycSubmitted ? 'Verification Pending' : 'Identity Verification Required'}
                                         </h3>
-                                        <p className="text-slate-500 dark:text-slate-400 mb-8 font-bold text-sm">
+                                        <p className="text-slate-500 dark:text-slate-400 mb-8 font-bold text-sm leading-relaxed max-w-md mx-auto">
                                             {isKycSubmitted
-                                                ? `The ${sidebarConfig.flatMap(g => g.items).find(i => i.id === activeTab)?.label} section will be accessible once our team approves your documents.`
-                                                : `The ${sidebarConfig.flatMap(g => g.items).find(i => i.id === activeTab)?.label} section is restricted to verified CA Partners. Please complete your KYC verification to unlock full access.`}
+                                                ? `The ${sidebarConfig.flatMap(g => g.items).find(i => i.id === activeTab)?.label} section is temporarily locked. Our team is currently reviewing your documents for compliance.`
+                                                : `Access to ${sidebarConfig.flatMap(g => g.items).find(i => i.id === activeTab)?.label} is restricted. You must complete your KYC verification to unlock full partner features.`}
                                         </p>
                                         {!isKycSubmitted && (
                                             <button
@@ -652,6 +684,7 @@ const CaDashboard = ({ onLogout }) => {
                                             />
                                         )}
 
+                                        {activeTab === 'wallet' && <CaWallet user={user} requests={requests} />}
                                         {activeTab === 'profile' && <CaProfile user={user} />}
                                         {activeTab === 'support' && <CaSupport user={user} />}
                                     </>

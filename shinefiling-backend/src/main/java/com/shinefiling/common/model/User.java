@@ -53,4 +53,7 @@ public class User {
     // Additional Profile Fields
     private String city;
     private String specialization; // e.g., CA, Lawyer, GST Expert, etc.
+    
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal walletBalance = java.math.BigDecimal.ZERO;
 }
