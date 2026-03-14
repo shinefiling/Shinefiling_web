@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Users, Shield, FileText, CheckCircle, XCircle, Search, Filter, Plus, Eye,
@@ -86,9 +86,15 @@ const AgentDetailsPanel = ({ agent, onClose, onAction, stats = { earnings: '₹0
                     <div className="w-24 h-24 rounded-full border-4 border-white dark:border-slate-800 bg-white dark:bg-slate-700 shadow-xl flex items-center justify-center text-3xl font-bold text-slate-700 dark:text-slate-200 overflow-hidden relative">
                         {(() => {
                             let docs = {};
-                            try { docs = JSON.parse(agent.kycDocuments || '{}'); } catch (e) { }
-                            const selfie = docs.selfie;
-                            return selfie ? (
+                            try { 
+                                docs = typeof agent.kycDocuments === 'string' 
+                                    ? JSON.parse(agent.kycDocuments || '{}') 
+                                    : (agent.kycDocuments || {}); 
+                            } catch (e) {
+                                console.error("Failed to parse kycDocuments for agent", agent.id, e);
+                            }
+                            const selfie = docs?.selfie;
+                            return selfie && typeof selfie === 'string' ? (
                                 <img src={getFullPath(selfie)} alt={agent.fullName} className="w-full h-full object-cover" />
                             ) : agent.fullName?.charAt(0);
                         })()}
@@ -173,7 +179,11 @@ const AgentDetailsPanel = ({ agent, onClose, onAction, stats = { earnings: '₹0
                     </h3>
                     {(() => {
                         let docs = {};
-                        try { docs = JSON.parse(agent.kycDocuments || '{}'); } catch (e) { }
+                        try { 
+                            docs = typeof agent.kycDocuments === 'string' 
+                                ? JSON.parse(agent.kycDocuments || '{}') 
+                                : (agent.kycDocuments || {}); 
+                        } catch (e) { }
 
                         const docList = agent.role === 'CA'
                             ? [
@@ -199,7 +209,7 @@ const AgentDetailsPanel = ({ agent, onClose, onAction, stats = { earnings: '₹0
                                 {docList.map(doc => (
                                     <div key={doc.id} className="bg-slate-50 dark:bg-slate-700/30 p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:border-[#F97316]/30 transition-colors group relative">
                                         <div className="aspect-[4/3] bg-white dark:bg-slate-800 rounded mb-2 flex items-center justify-center overflow-hidden">
-                                            {doc.path?.match(/\.(jpeg|jpg|gif|png)$/) ? (
+                                            {typeof doc.path === 'string' && doc.path.match(/\.(jpeg|jpg|gif|png)$/) ? (
                                                 <img src={getFullPath(doc.path)} alt={doc.label} className="w-full h-full object-cover" />
                                             ) : doc.path ? (
                                                 <div className="flex flex-col items-center gap-1">
@@ -211,7 +221,7 @@ const AgentDetailsPanel = ({ agent, onClose, onAction, stats = { earnings: '₹0
                                             )}
                                         </div>
                                         <p className="text-[10px] font-bold capitalize text-slate-700 dark:text-slate-300 truncate">{doc.label}</p>
-                                        <p className="text-[9px] text-slate-400 font-mono truncate">{doc.path?.split('/').pop() || 'N/A'}</p>
+                                        <p className="text-[9px] text-slate-400 font-mono truncate">{typeof doc.path === 'string' ? doc.path.split('/').pop() : 'N/A'}</p>
 
                                         {doc.path && (
                                             <a href={getFullPath(doc.path)} target="_blank" rel="noreferrer" className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
@@ -230,7 +240,11 @@ const AgentDetailsPanel = ({ agent, onClose, onAction, stats = { earnings: '₹0
                     <div className="space-y-4 mb-6">
                         {(() => {
                             let docs = {};
-                            try { docs = JSON.parse(agent.kycDocuments || '{}'); } catch (e) { }
+                            try { 
+                                docs = typeof agent.kycDocuments === 'string' 
+                                    ? JSON.parse(agent.kycDocuments || '{}') 
+                                    : (agent.kycDocuments || {}); 
+                            } catch (e) { }
 
                             return (
                                 <>
