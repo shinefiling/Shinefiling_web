@@ -65,7 +65,7 @@ const AgentDetailsPanel = ({ agent, onClose, onAction, stats = { earnings: '₹0
     }, [showMenu]);
 
     const getFullPath = (path) => {
-        if (!path) return '';
+        if (!path || typeof path !== 'string') return '';
         if (path.startsWith('http')) return path;
         const base = BASE_URL.replace(/\/api$/, '');
         return base + (path.startsWith('/') ? path : '/' + path);

@@ -18,7 +18,7 @@ import { BASE_URL, uploadFile } from '../../../api';
 
 const CaKyc = ({ user, onComplete }) => {
     const getFullPath = (path) => {
-        if (!path || typeof path !== 'string') return path;
+        if (!path || typeof path !== 'string') return '';
         if (path.startsWith('http') || path.startsWith('blob:')) return path;
         const base = BASE_URL.replace(/\/api$/, '');
         return base + (path.startsWith('/') ? path : '/' + path);
