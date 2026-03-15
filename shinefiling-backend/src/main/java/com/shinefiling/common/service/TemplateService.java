@@ -50,7 +50,7 @@ public class TemplateService {
                 "<style>" +
                 "  body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f7f6; color: #333333; }" +
                 "  .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }" +
-                "  .header { background-color: #043E52; padding: 30px; text-align: center; }" +
+                "  .header { background-color: #ffffff; padding: 30px; text-align: center; border-bottom: 1px solid #f1f5f9; }" +
                 "  .content { padding: 40px; line-height: 1.6; font-size: 16px; }" +
                 "  .footer { background-color: #f8fafc; padding: 30px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }" +
                 "  .btn { display: inline-block; padding: 12px 24px; background-color: #F97316; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }" +

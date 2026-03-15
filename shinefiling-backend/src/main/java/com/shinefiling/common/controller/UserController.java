@@ -160,6 +160,12 @@ public class UserController {
         if (kycData.get("aadhaarNumber") != null) {
             user.setAadhaarNumber(kycData.get("aadhaarNumber").toString());
         }
+        if (kycData.get("agencyName") != null) {
+            user.setBusinessName(kycData.get("agencyName").toString());
+        }
+        if (kycData.get("city") != null) {
+            user.setCity(kycData.get("city").toString());
+        }
 
         try {
             // Since files are now uploaded separately via the separate upload endpoint,

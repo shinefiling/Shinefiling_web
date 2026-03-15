@@ -1,10 +1,11 @@
-﻿
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Phone, MapPin, Building, Search, User } from 'lucide-react';
+import { Mail, Phone, MapPin, Building, Search, User, ExternalLink, MessageSquare, MoreVertical, ShieldCheck, Clock } from 'lucide-react';
 
 const AgentClients = ({ tasks }) => {
-    // Extract unique clients from tasks list (simulated logic as we don't have separate client endpoint yet)
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Extract unique clients from tasks list
     const uniqueClients = Array.from(new Set(tasks.map(t => t.user?.id || t.userEmail)))
         .map(id => {
             return tasks.find(t => (t.user?.id || t.userEmail) === id)?.user || {
@@ -12,63 +13,94 @@ const AgentClients = ({ tasks }) => {
                 email: id || 'No Email',
                 phone: 'N/A'
             };
-        });
+        })
+        .filter(client => 
+            (client.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (client.email || '').toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
     return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-[#043E52] dark:text-white">Active Clients</h2>
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input type="text" placeholder="Search clients..." className="pl-10 pr-4 py-2.5 bg-white dark:bg-[#1C3540] border border-slate-200 dark:border-slate-700 rounded-xl text-sm w-64 focus:ring-2 focus:ring-[#ED6E3F] outline-none dark:text-white" />
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 font-roboto uppercase">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6 bg-white dark:bg-[#043E52] p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-[#1C3540]">
+                <div>
+                    <h2 className="text-2xl font-black text-[#043E52] dark:text-white tracking-tight">Client Portfolio</h2>
+                    <p className="text-slate-400 text-[10px] font-bold tracking-widest mt-1">Managing {uniqueClients.length} active business relationships</p>
+                </div>
+                <div className="relative w-full md:w-auto">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                        type="text" 
+                        placeholder="Search portfolio..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full md:w-80 pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-[#1C3540] border-none rounded-2xl text-[11px] font-black tracking-widest focus:ring-2 focus:ring-[#ED6E3F] outline-none dark:text-white transition-all shadow-inner" 
+                    />
                 </div>
             </div>
 
             {uniqueClients.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {uniqueClients.map((client, i) => (
-                        <div key={i} className="bg-white dark:bg-[#043E52] rounded-3xl p-6 border border-slate-100 dark:border-[#1C3540] shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 dark:bg-[#1C3540] rounded-bl-[100px] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                        <div key={i} className="group relative">
+                            <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800 rounded-[40px] blur-xl opacity-0 hover:opacity-10 dark:hover:opacity-20 transition-opacity"></div>
+                            <div className="relative bg-white dark:bg-[#043E52] rounded-[40px] p-8 border border-slate-100 dark:border-[#1C3540] shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 overflow-hidden">
+                                {/* Decorative elements */}
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 dark:bg-[#1B343D] rounded-bl-[80px] -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                                
+                                <div className="relative z-10">
+                                    <div className="flex justify-between items-start mb-8">
+                                        <div className="w-20 h-20 rounded-[28px] bg-gradient-to-br from-[#043E52] to-[#1A3642] dark:from-[#ED6E3F] dark:to-[#d55f34] flex items-center justify-center text-white text-3xl font-black shadow-2xl shadow-[#ED6E3F]/20 group-hover:rotate-6 transition-transform">
+                                            {client.fullName?.[0] || 'C'}
+                                        </div>
+                                        <button className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-[#ED6E3F] transition-colors">
+                                            <MoreVertical size={20} />
+                                        </button>
+                                    </div>
 
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#043E52] to-[#2C5282] dark:from-[#ED6E3F] dark:to-[#A67C52] flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-900/20">
-                                        {client.fullName?.[0] || <User />}
+                                    <div className="mb-8">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h3 className="text-xl font-black text-[#043E52] dark:text-white leading-tight tracking-tight">{client.fullName || 'Unknown Client'}</h3>
+                                            <ShieldCheck size={16} className="text-emerald-500" />
+                                        </div>
+                                        <span className="text-[10px] font-black text-[#ED6E3F] tracking-[0.2em]">Verified Business</span>
                                     </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-[#043E52] dark:text-white leading-tight">{client.fullName || 'Client Name'}</h3>
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Business Owner</span>
-                                    </div>
-                                </div>
 
-                                <div className="space-y-3 mb-6">
-                                    <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-                                        <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-[#1C3540] flex items-center justify-center text-slate-400"><Mail size={14} /></div>
-                                        <span className="truncate">{client.email}</span>
+                                    <div className="space-y-4 mb-10">
+                                        <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-transparent hover:border-slate-100 dark:hover:border-slate-700 transition-all">
+                                            <Mail size={16} className="text-[#ED6E3F]" />
+                                            <span className="truncate lowercase">{client.email}</span>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-transparent hover:border-slate-100 dark:hover:border-slate-700 transition-all">
+                                            <Phone size={16} className="text-[#ED6E3F]" />
+                                            <span>{client.phone || '+91 CONTACT PROTECTED'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-transparent hover:border-slate-100 dark:hover:border-slate-700 transition-all">
+                                            <MapPin size={16} className="text-[#ED6E3F]" />
+                                            <span>CHENNAI, IN</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-                                        <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-[#1C3540] flex items-center justify-center text-slate-400"><Phone size={14} /></div>
-                                        <span>{client.phone || '+91 7639227019'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-                                        <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-[#1C3540] flex items-center justify-center text-slate-400"><MapPin size={14} /></div>
-                                        <span>Chennai, India</span>
-                                    </div>
-                                </div>
 
-                                <div className="flex gap-2">
-                                    <button className="flex-1 py-2.5 bg-[#043E52] dark:bg-white dark:text-[#043E52] text-white rounded-xl text-sm font-bold hover:opacity-90 transition">View Profile</button>
-                                    <button className="px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-[#1C3540] transition text-slate-600 dark:text-slate-300"><Mail size={18} /></button>
+                                    <div className="flex gap-3">
+                                        <button className="flex-1 py-4 bg-[#043E52] dark:bg-white text-white dark:text-[#043E52] rounded-2xl text-[10px] font-black tracking-widest hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all uppercase">
+                                            View Archive
+                                        </button>
+                                        <button className="px-5 py-4 bg-orange-50 dark:bg-slate-800 text-[#ED6E3F] rounded-2xl hover:bg-orange-100 transition-all active:scale-90">
+                                            <MessageSquare size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-20 bg-white dark:bg-[#043E52] rounded-3xl border border-slate-100 dark:border-[#1C3540]">
-                    <User size={48} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
-                    <h3 className="text-lg font-bold text-[#043E52] dark:text-white">No Clients Found</h3>
-                    <p className="text-slate-500 text-sm">Once you process applications, your clients will appear here.</p>
+                <div className="text-center py-40 bg-white dark:bg-[#043E52] rounded-[48px] border border-slate-100 dark:border-[#1C3540] shadow-sm">
+                    <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <User size={40} className="text-slate-200 dark:text-slate-700" />
+                    </div>
+                    <h3 className="text-xl font-black text-[#043E52] dark:text-white mb-2 tracking-tight">No Acquisitions Yet</h3>
+                    <p className="text-slate-400 text-[11px] font-bold tracking-widest max-w-[240px] mx-auto leading-relaxed">Your active client portfolio will expand as you process and complete service applications.</p>
+                    <button className="mt-8 text-[#ED6E3F] text-[10px] font-black tracking-[0.2em] hover:underline">Download Acquisition Guide</button>
                 </div>
             )}
         </motion.div>

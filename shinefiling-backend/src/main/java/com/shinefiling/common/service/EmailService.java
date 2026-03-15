@@ -1,32 +1,39 @@
 package com.shinefiling.common.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
-import jakarta.mail.internet.MimeMessage;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class EmailService {
 
-    @Autowired
-    private JavaMailSender mailSender;
+    private final JavaMailSender mailSender;
+
+    @Value("${mail.from.address}")
+    private String fromEmail;
 
     public void sendEmail(String to, String subject, String body) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            
-            helper.setFrom("ShineFiling <info@shinefiling.com>");
+
+            helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(body, true); // true indicates HTML content
-            
+            helper.setText(body, true);
+
             mailSender.send(message);
-            System.out.println("Email sent successfully to: " + to);
-        } catch (Exception e) {
-            System.err.println("Failed to send email to " + to + ": " + e.getMessage());
-            e.printStackTrace();
+            log.info("Email sent successfully to {}", to);
+        } catch (MessagingException e) {
+            log.error("Failed to send email to {}: {}", to, e.getMessage());
+            throw new RuntimeException("Email sending failed", e);
         }
     }
 }

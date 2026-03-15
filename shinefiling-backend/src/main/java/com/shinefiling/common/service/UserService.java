@@ -26,7 +26,10 @@ public class UserService {
 
     public User registerUser(User user) {
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new RuntimeException("Email address already exists. Please login or use a different email.");
+        }
+        if (user.getMobile() != null && !user.getMobile().isEmpty() && userRepository.existsByMobile(user.getMobile())) {
+            throw new RuntimeException("Mobile number already exists. Please login or use a different mobile number.");
         }
         user.setPassword(passwordEncoder.encode(user.getPassword()));
 
@@ -83,7 +86,7 @@ public class UserService {
 
     public void resendOtp(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Account not found with this email."));
 
         String otp = String.format("%06d", new java.util.Random().nextInt(999999));
         user.setOtp(otp);
@@ -97,7 +100,7 @@ public class UserService {
 
     public void forgotPassword(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+                .orElseThrow(() -> new RuntimeException("No account found with this email address. Please check and try again."));
 
         String otp = String.format("%06d", new java.util.Random().nextInt(999999));
         user.setOtp(otp);
@@ -111,7 +114,7 @@ public class UserService {
 
     public void resetPassword(String email, String otp, String newPassword) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Account not found."));
 
         if (user.getOtp() != null && user.getOtp().equals(otp) &&
                 user.getOtpExpiry().isAfter(java.time.LocalDateTime.now())) {

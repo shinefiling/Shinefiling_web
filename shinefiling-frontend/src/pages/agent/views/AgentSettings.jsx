@@ -1,7 +1,7 @@
-﻿
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Save, User, Smartphone, Mail, Globe, Lock, Crown, ShieldCheck } from 'lucide-react';
+import { Save, User, Smartphone, Mail, Globe, Lock, Crown, ShieldCheck, Clock } from 'lucide-react';
 import { updateUserProfile } from '../../../api'; // Verify path
 
 const AgentSettings = ({ user }) => {
@@ -21,9 +21,6 @@ const AgentSettings = ({ user }) => {
         if (user.kycStatus === 'PENDING') return { color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/20', text: 'Verification Pending', icon: Clock };
         return { color: 'text-rose-500 bg-rose-50 dark:bg-rose-900/20', text: 'Unverified', icon: Lock };
     };
-
-    // We import Clock here manually since it wasn't in the top import
-    const Clock = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
 
 
     const handleSave = async (e) => {
