@@ -9,6 +9,7 @@ import {
 import { getAllUsers, updateUserRole, getAllApplications, getAdminStats, getFullAnalytics } from '../../../api';
 
 import CRMSystem from './CRMSystem';
+import EmailTemplates from './master/EmailTemplates';
 
 // --- IMPORT SUB-MODULES ---
 import AnalyticsDashboard from './master/AnalyticsDashboard';
@@ -93,7 +94,7 @@ const MasterDashboard = ({ activeTab, onNavigate, user }) => {
             case 'ops_mgmt':
             case 'ops_orders': return <OrdersManagement orders={orders} />;
             case 'ops_tasks': return <CRMSystem defaultTab="tasks" orders={orders} users={users} analytics={analytics} />; // Reuse CRM Tasks
-            case 'ops_chat': return <Notifications />;
+            case 'ops_chat': return <Notifications hideTabs={true} />;
 
             // FINANCE
             case 'finance_mgmt':
@@ -104,14 +105,14 @@ const MasterDashboard = ({ activeTab, onNavigate, user }) => {
 
             // MARKETING
             case 'marketing_mgmt':
-            case 'mkt_campaigns':
-            case 'mkt_email':
+            case 'mkt_campaigns': return <div className="p-8 text-center text-gray-500">Marketing Module Unavailable</div>;
+            case 'mkt_email': return <EmailTemplates />;
             case 'mkt_offers': return <div className="p-8 text-center text-gray-500">Marketing Module Unavailable</div>;
 
             // SUPPORT
             case 'support_mgmt':
             case 'sup_tickets':
-            case 'sup_kb': return <Notifications />;
+            case 'sup_kb': return <Notifications hideTabs={true} />;
 
             // Client CRM Sub-pages
             case 'crm':
@@ -124,12 +125,11 @@ const MasterDashboard = ({ activeTab, onNavigate, user }) => {
             case 'crm_billing': return <CRMSystem defaultTab="billing" orders={orders} users={users} analytics={analytics} />;
             case 'crm_reports': return <CRMSystem defaultTab="reports" orders={orders} users={users} analytics={analytics} />;
 
-            // Agent CRM Sub-pages
             case 'agent_approvals':
-            case 'agent_dashboard': return <AgentApprovals viewMode="overview" defaultFilter="ALL" users={users} />;
-            case 'agent_list': return <AgentApprovals viewMode="list" defaultFilter="ALL" users={users} />;
-            case 'agent_pending': return <AgentApprovals viewMode="list" defaultFilter="PENDING" users={users} />;
-            case 'agent_active': return <AgentApprovals viewMode="list" defaultFilter="VERIFIED" users={users} />;
+            case 'agent_dashboard': return <AgentApprovals viewMode="overview" defaultFilter="ALL" users={users} targetRole="AGENT" />;
+            case 'agent_list': return <AgentApprovals viewMode="list" defaultFilter="ALL" users={users} targetRole="AGENT" />;
+            case 'agent_pending': return <AgentApprovals viewMode="list" defaultFilter="PENDING" users={users} targetRole="AGENT" />;
+            case 'agent_active': return <AgentApprovals viewMode="list" defaultFilter="VERIFIED" users={users} targetRole="AGENT" />;
 
             // CA CRM Sub-pages
             case 'ca_crm':

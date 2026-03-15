@@ -21,7 +21,7 @@ const AgentListItem = ({ agent, onSelect, onAction }) => (
                 </div>
                 <div>
                     <h3 className="font-bold text-slate-800 dark:text-white group-hover:text-[#F97316] transition-colors">{agent.fullName}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">ID: AG-{agent.id}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">ID: {agent.role === 'CA' ? 'FR' : 'PT' }-{agent.id}</p>
                 </div>
             </div>
             <div className="flex flex-col items-end gap-1">
@@ -175,7 +175,7 @@ const AgentDetailsPanel = ({ agent, onClose, onAction, stats = { earnings: '₹0
                 {/* Document Section */}
                 <div className="space-y-4 mb-6">
                     <h3 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
-                        <FileText size={16} className="text-[#F97316]" /> {agent.role === 'CA' ? 'Partner Compliance Dossier' : 'KYC Documents'}
+                        <FileText size={16} className="text-[#F97316]" /> {agent.role === 'CA' ? 'Freelancer Compliance Dossier' : 'Partner KYC Documents'}
                     </h3>
                     {(() => {
                         let docs = {};
@@ -362,7 +362,7 @@ const AgentCRM = ({ defaultFilter = 'ALL', viewMode = 'overview', targetRole = '
 
     // Handlers
     const handleApprove = async (id) => {
-        if (window.confirm('Verify and activate this agent?')) {
+        if (window.confirm(`Verify and activate this ${targetRole === 'CA' ? 'Freelancer' : 'Partner'}?`)) {
             try {
                 await approveAgentKyc(id);
                 // Optimistic Update
@@ -439,10 +439,10 @@ const AgentCRM = ({ defaultFilter = 'ALL', viewMode = 'overview', targetRole = '
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Briefcase className="text-[#F97316]" size={28} /> {targetRole === 'CA' ? 'CA CRM' : 'Agent CRM'} <span className="text-slate-300 dark:text-slate-600">/</span> {filterStatus === 'ALL' ? 'Directory' : filterStatus === 'PENDING' ? 'Pending Approvals' : 'Active Partners'}
+                        <Briefcase className="text-[#F97316]" size={28} /> {targetRole === 'CA' ? 'Freelancer CRM' : 'Partner CRM'} <span className="text-slate-300 dark:text-slate-600">/</span> {filterStatus === 'ALL' ? 'Directory' : filterStatus === 'PENDING' ? 'Pending Approvals' : (targetRole === 'CA' ? 'Active Freelancers' : 'Active Partners')}
                     </h2>
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                        Manage partners, track performance, and handle KYC verifications.
+                        Manage {targetRole === 'CA' ? 'Freelancers' : 'Partners'}, track performance, and handle {targetRole === 'CA' ? 'compliance' : 'KYC'} verifications.
                     </p>
                 </div>
                 <div className="flex gap-3">
@@ -450,7 +450,7 @@ const AgentCRM = ({ defaultFilter = 'ALL', viewMode = 'overview', targetRole = '
                         <Award size={18} /> Top Performers
                     </button>
                     <button className="px-4 py-2 bg-[#F97316] text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition">
-                        <Plus size={18} /> Add New Partner
+                        <Plus size={18} /> Add {targetRole === 'CA' ? 'Freelancer' : 'Partner'}
                     </button>
                 </div>
             </div>
@@ -460,10 +460,10 @@ const AgentCRM = ({ defaultFilter = 'ALL', viewMode = 'overview', targetRole = '
             {viewMode === 'overview' && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     {[
-                        { label: 'Total Partners', val: agents.length, icon: Users, color: 'blue' },
-                        { label: 'Pending KYC', val: agents.filter(a => a.kycStatus === 'SUBMITTED').length, icon: AlertTriangle, color: 'orange' },
-                        { label: 'CRM Partners', val: agents.filter(a => a.kycStatus === 'VERIFIED').length, icon: CheckCircle, color: 'green' },
-                        { label: 'Total Commission', val: '₹1.2L', icon: IndianRupee, color: 'purple' },
+                        { label: targetRole === 'CA' ? 'Total Freelancers' : 'Total Partners', val: agents.length, icon: Users, color: 'blue' },
+                        { label: targetRole === 'CA' ? 'Compliance Pending' : 'Pending KYC', val: agents.filter(a => a.kycStatus === 'SUBMITTED').length, icon: AlertTriangle, color: 'orange' },
+                        { label: targetRole === 'CA' ? 'Active Professionals' : 'Active Partners', val: agents.filter(a => a.kycStatus === 'VERIFIED').length, icon: CheckCircle, color: 'green' },
+                        { label: targetRole === 'CA' ? 'Total Payouts' : 'Total Commission', val: '₹1.2L', icon: IndianRupee, color: 'purple' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
                             <div>
@@ -490,7 +490,7 @@ const AgentCRM = ({ defaultFilter = 'ALL', viewMode = 'overview', targetRole = '
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 type="text"
-                                placeholder="Search agents..."
+                                placeholder={`Search ${targetRole === 'CA' ? 'Freelancers' : 'Partners'}...`}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20 outline-none"
@@ -502,11 +502,11 @@ const AgentCRM = ({ defaultFilter = 'ALL', viewMode = 'overview', targetRole = '
                     {/* Scrollable List */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 dark:bg-slate-900/10">
                         {loading ? (
-                            <div className="p-8 text-center text-slate-400 text-sm">Loading Agent Directory...</div>
+                            <div className="p-8 text-center text-slate-400 text-sm">Loading {targetRole === 'CA' ? 'Freelancer' : 'Partner'} Directory...</div>
                         ) : filteredAgents.length === 0 ? (
                             <div className="p-12 text-center flex flex-col items-center opacity-50">
                                 <Users size={40} className="mb-3 text-slate-300" />
-                                <p className="text-slate-500 font-bold">No agents found</p>
+                                <p className="text-slate-500 font-bold">No {targetRole === 'CA' ? 'Freelancers' : 'Partners'} found</p>
                             </div>
                         ) : (
                             filteredAgents.map(agent => (
@@ -541,8 +541,8 @@ const AgentCRM = ({ defaultFilter = 'ALL', viewMode = 'overview', targetRole = '
             {showRejectModal && createPortal(
                 <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in scale-95 duration-200">
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white mb-2">Reject Agent Application</h3>
-                        <p className="text-sm text-slate-500 mb-4">Please provide a reason to notify the agent.</p>
+                        <h3 className="font-bold text-lg text-slate-800 dark:text-white mb-2">Reject {targetRole === 'CA' ? 'Freelancer' : 'Partner'} Application</h3>
+                        <p className="text-sm text-slate-500 mb-4">Please provide a reason to notify the {targetRole === 'CA' ? 'Freelancer' : 'Partner'}.</p>
                         <textarea
                             value={rejectReason}
                             onChange={e => setRejectReason(e.target.value)}

@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { getNotifications } from '../../../../api';
 import {
     Users, Briefcase, Calendar, CheckSquare, IndianRupee,
@@ -148,7 +148,7 @@ const DashboardOverview = ({ user, orders = [], users = [], onNavigate, adminSta
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{greeting}, {user?.fullName || 'Master Admin'}! 👋</h1>
                         <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                            You have <span className="text-orange-500 font-bold underline cursor-pointer" onClick={() => onNavigate && onNavigate('ops_orders')}>{stats.pendingCount} Pending Approvals</span>, <span className="text-orange-500 font-bold underline cursor-pointer" onClick={() => onNavigate && onNavigate('ca_list')}>{stats.totalCAs} CA Partners</span> & <span className="text-orange-500 font-bold underline cursor-pointer" onClick={() => onNavigate && onNavigate('agent_list')}>{stats.totalAgents} Agents</span>
+                            You have <span className="text-orange-500 font-bold underline cursor-pointer" onClick={() => onNavigate && onNavigate('ops_orders')}>{stats.pendingCount} Pending Approvals</span>, <span className="text-orange-500 font-bold underline cursor-pointer" onClick={() => onNavigate && onNavigate('ca_list')}>{stats.totalCAs} Freelancer Partners</span> & <span className="text-orange-500 font-bold underline cursor-pointer" onClick={() => onNavigate && onNavigate('agent_list')}>{stats.totalAgents} Partners</span>
                         </p>
                     </div>
                 </div>
@@ -225,20 +225,20 @@ const DashboardOverview = ({ user, orders = [], users = [], onNavigate, adminSta
                     subtext="Potential clients"
                 />
                 <StatCard
-                    title="CA CRM Partners"
+                    title="Freelancer Partners"
                     value={stats.totalCAs}
                     trend={0}
                     icon={Scale}
                     colorClass="text-slate-700 bg-slate-700"
-                    subtext="Chartered Accountants"
+                    subtext="Expert Professionals"
                 />
                 <StatCard
-                    title="Agent CRM Partners"
+                    title="Business Partners"
                     value={stats.totalAgents}
                     trend={0}
                     icon={Briefcase}
                     colorClass="text-[#F97316] bg-[#F97316]"
-                    subtext="Field Agents & Associates"
+                    subtext="Field Partners & Associates"
                 />
             </div>
 

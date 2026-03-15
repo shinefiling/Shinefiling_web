@@ -17,12 +17,16 @@ public class DataInitializer implements CommandLineRunner {
     private com.shinefiling.common.repository.ServiceProductRepository serviceProductRepository;
 
     @Autowired
+    private com.shinefiling.common.repository.NotificationTemplateRepository templateRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) throws Exception {
         // Seed Services
         seedServices();
+        seedTemplates();
     }
 
     private void seedServices() {
@@ -109,6 +113,61 @@ public class DataInitializer implements CommandLineRunner {
             com.shinefiling.common.model.ServiceProduct p = new com.shinefiling.common.model.ServiceProduct(
                     id, name, catName, catId, price, "7-10 Days", 5, "ACTIVE", color);
             catalog.add(p);
+        }
+    }
+
+    private void seedTemplates() {
+        createTemplateIfMissing("KYC_APPROVAL", "EMAIL", "Congratulations! Your KYC is Verified - ShineFiling",
+                "Dear {{name}},\n\n" +
+                "Great news! Your KYC documents have been successfully verified by our team.\n\n" +
+                "Your account is now fully activated, and you can start accepting service requests on the ShineFiling platform.\n\n" +
+                "Next Steps:\n" +
+                "1. Login to your dashboard.\n" +
+                "2. Complete your profile if you haven't already.\n" +
+                "3. Start providing services and growing your business.\n\n" +
+                "If you have any questions, feel free to reach out to us.\n\n" +
+                "Warm Regards,\n" +
+                "Team ShineFiling", "name");
+
+        createTemplateIfMissing("KYC_REJECTION", "EMAIL", "Action Required: Update Your KYC Documents - ShineFiling",
+                "Dear {{name}},\n\n" +
+                "We reviewed your KYC submission and unfortunately, we couldn't verify your documents at this time.\n\n" +
+                "Reason for Rejection: {{reason}}\n\n" +
+                "Please login to your dashboard and re-upload the correct documents to proceed with account activation.\n\n" +
+                "Warm Regards,\n" +
+                "Team ShineFiling", "name,reason");
+
+        createTemplateIfMissing("KYC_REMINDER", "EMAIL", "Action Required: Complete Your KYC - ShineFiling",
+                "Dear {{name}},\n\n" +
+                "Welcome to ShineFiling! We are excited to have you onboard as a {{roleLabel}}.\n\n" +
+                "To activate your account and start accepting service requests, you are required to complete your KYC (Know Your Customer) verification.\n\n" +
+                "How to complete your KYC:\n" +
+                "1. Login to your dashboard: https://shinefiling.com/login\n" +
+                "2. Navigate to the 'KYC & Compliance' section.\n" +
+                "3. Upload your documents.\n\n" +
+                "Warm Regards,\n" +
+                "Team ShineFiling", "name,roleLabel");
+
+        createTemplateIfMissing("EMAIL_VERIFICATION_OTP", "EMAIL", "Verify your email - ShineFiling",
+                "Hi there,\n\n" +
+                "Your OTP for verification is: <strong style='font-size: 24px; color: #F97316;'>{{otp}}</strong>\n\n" +
+                "This code expires in 10 minutes. If you did not request this, please ignore this email.\n\n" +
+                "Warm Regards,\n" +
+                "Team ShineFiling", "otp");
+        
+        System.out.println("Verified/Seeded notification templates.");
+    }
+
+    private void createTemplateIfMissing(String name, String type, String subject, String body, String vars) {
+        if (!templateRepository.findByName(name).isPresent()) {
+            com.shinefiling.common.model.NotificationTemplate t = new com.shinefiling.common.model.NotificationTemplate();
+            t.setName(name);
+            t.setType(type);
+            t.setSubject(subject);
+            t.setBody(body);
+            t.setVariables(vars);
+            t.setActive(true);
+            templateRepository.save(t);
         }
     }
 }

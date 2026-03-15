@@ -435,8 +435,8 @@ const CaDashboard = ({ onLogout }) => {
                             onClick={() => isKycVerified ? setActiveTab('wallet') : null}
                             disabled={!isKycVerified}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 group
-                                ${activeTab === 'wallet' 
-                                    ? 'bg-[#F97316] text-white shadow-lg shadow-orange-500/20' 
+                                ${activeTab === 'wallet'
+                                    ? 'bg-[#F97316] text-white shadow-lg shadow-orange-500/20'
                                     : !isKycVerified
                                         ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed opacity-60 border border-slate-200 dark:border-slate-700'
                                         : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-100/50 dark:border-emerald-800/30'

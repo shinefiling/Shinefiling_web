@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Users, Briefcase, UserCheck, Shield, ChevronRight, Search, Filter,
     MoreVertical, UserPlus, Lock, Key, Ban, CheckCircle, Wallet, Edit2, Mail
@@ -50,8 +50,8 @@ const AccessManagement = ({ defaultTab = 'users' }) => {
     // Tab items
     const tabs = [
         { id: 'users', label: 'User Controls', icon: Users, color: 'blue' },
-        { id: 'cas', label: 'CA Controls', icon: Briefcase, color: 'purple' },
-        { id: 'agents', label: 'Agent Controls', icon: UserCheck, color: 'green' },
+        { id: 'cas', label: 'Freelancer Controls', icon: Briefcase, color: 'purple' },
+        { id: 'agents', label: 'Partner Controls', icon: UserCheck, color: 'green' },
     ];
 
     return (
@@ -60,10 +60,10 @@ const AccessManagement = ({ defaultTab = 'users' }) => {
             {/* Header Area */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-                    <Shield className="text-[#F97316]" size={28} /> Access & Roles <span className="text-slate-300 dark:text-slate-600">/</span> {activeTab === 'users' ? 'User Access' : activeTab === 'cas' ? 'CA Permissions' : 'Agent Permissions'}
+                    <Shield className="text-[#F97316]" size={28} /> Access & Roles <span className="text-slate-300 dark:text-slate-600">/</span> {activeTab === 'users' ? 'User Access' : activeTab === 'cas' ? 'Freelancer Permissions' : 'Partner Permissions'}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                    Control access, permissions, and status for Users, CAs, and Agents.
+                    Control access, permissions, and status for Users, Freelancers, and Partners.
                 </p>
             </div>
 
@@ -76,7 +76,7 @@ const AccessManagement = ({ defaultTab = 'users' }) => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                         type="text"
-                        placeholder={`Search ${activeTab === 'cas' ? 'Chartered Accountants' : activeTab === 'agents' ? 'Agents' : 'Users'}...`}
+                        placeholder={`Search ${activeTab === 'cas' ? 'Freelancers' : activeTab === 'agents' ? 'Partners' : 'Users'}...`}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-[#F97316]/20 text-slate-700 dark:text-slate-200"
@@ -87,7 +87,7 @@ const AccessManagement = ({ defaultTab = 'users' }) => {
                         <Filter size={16} /> Filter Status
                     </button>
                     <button className="px-4 py-2 bg-[#043E52] text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-[#F97316] transition shadow-lg shadow-orange-500/20">
-                        <UserPlus size={16} /> Invite New {activeTab === 'users' ? 'User' : activeTab === 'cas' ? 'CA' : 'Agent'}
+                        <UserPlus size={16} /> Invite New {activeTab === 'users' ? 'User' : activeTab === 'cas' ? 'Freelancer' : 'Partner'}
                     </button>
                 </div>
             </div>

@@ -21,6 +21,9 @@ public class UserService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private TemplateService templateService;
+
     public User registerUser(User user) {
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new RuntimeException("Email already exists");
@@ -40,11 +43,10 @@ public class UserService {
 
         User savedUser = userRepository.save(user);
 
-        // Send OTP Email
-        emailService.sendEmail(
-                user.getEmail(),
-                "ShineFiling - Verify your email",
-                "Your OTP for verification is: " + otp + "\nIt expires in 10 minutes.");
+        // Send OTP Email via Template
+        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        vars.put("otp", otp);
+        templateService.sendTemplatedEmail(user.getEmail(), "EMAIL_VERIFICATION_OTP", vars);
 
         return savedUser;
     }
@@ -58,10 +60,25 @@ public class UserService {
                 user.setVerified(true);
                 user.setOtp(null); // Clear OTP
                 userRepository.save(user);
+                
+                // Send KYC Reminder for CA/Agent if KYC is not yet submitted
+                if (("CA".equalsIgnoreCase(user.getRole()) || "AGENT".equalsIgnoreCase(user.getRole())) && "PENDING".equalsIgnoreCase(user.getKycStatus())) {
+                    sendKycReminder(user);
+                }
                 return true;
             }
         }
         return false;
+    }
+
+    private void sendKycReminder(User user) {
+        String roleLabel = "CA".equalsIgnoreCase(user.getRole()) ? "Chartered Accountant (CA)" : "Service Agent";
+        
+        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        vars.put("name", user.getFullName());
+        vars.put("roleLabel", roleLabel);
+        
+        templateService.sendTemplatedEmail(user.getEmail(), "KYC_REMINDER", vars);
     }
 
     public void resendOtp(String email) {
@@ -73,10 +90,9 @@ public class UserService {
         user.setOtpExpiry(java.time.LocalDateTime.now().plusMinutes(10));
         userRepository.save(user);
 
-        emailService.sendEmail(
-                user.getEmail(),
-                "ShineFiling - Resend OTP",
-                "Your new OTP for verification is: " + otp + "\nIt expires in 10 minutes.");
+        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        vars.put("otp", otp);
+        templateService.sendTemplatedEmail(user.getEmail(), "EMAIL_VERIFICATION_OTP", vars);
     }
 
     public void forgotPassword(String email) {
@@ -88,10 +104,9 @@ public class UserService {
         user.setOtpExpiry(java.time.LocalDateTime.now().plusMinutes(10));
         userRepository.save(user);
 
-        emailService.sendEmail(
-                user.getEmail(),
-                "ShineFiling - Password Reset OTP",
-                "Your OTP for password reset is: " + otp + "\nIt expires in 10 minutes.");
+        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        vars.put("otp", otp);
+        templateService.sendTemplatedEmail(user.getEmail(), "EMAIL_VERIFICATION_OTP", vars);
     }
 
     public void resetPassword(String email, String otp, String newPassword) {
@@ -151,7 +166,13 @@ public class UserService {
             newUser.setLoginMethod("google");
             // Set dummy password
             newUser.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
-            return userRepository.save(newUser);
+            User savedUser = userRepository.save(newUser);
+            
+            // Send KYC Reminder for CA/Agent if KYC is not yet submitted (usually true for new Google users)
+            if (("CA".equalsIgnoreCase(savedUser.getRole()) || "AGENT".equalsIgnoreCase(savedUser.getRole())) && "PENDING".equalsIgnoreCase(savedUser.getKycStatus())) {
+                sendKycReminder(savedUser);
+            }
+            return savedUser;
         }
     }
 }

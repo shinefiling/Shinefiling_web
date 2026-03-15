@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface NotificationTemplateRepository extends JpaRepository<NotificationTemplate, Long> {
     List<NotificationTemplate> findByType(String type);
+    java.util.Optional<NotificationTemplate> findByName(String name);
 }

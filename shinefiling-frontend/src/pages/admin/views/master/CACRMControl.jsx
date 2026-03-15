@@ -284,7 +284,7 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
 
     const renderRolesTab = () => (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm animate-in fade-in">
-            <h3 className="font-bold text-slate-800 dark:text-white mb-6">CA Role & Permission Matrix</h3>
+            <h3 className="font-bold text-slate-800 dark:text-white mb-6">Freelancer Role & Permission Matrix</h3>
             <div className="space-y-4">
                 {isLoading ? (
                     <div className="text-center py-10 text-slate-500"><Loader2 className="animate-spin inline mr-2" /> Loading Roles...</div>
@@ -314,8 +314,8 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
         <div className="space-y-6 animate-in fade-in">
             <div className="flex justify-between items-center">
                 <div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">CA Withdrawal Requests</h3>
-                    <p className="text-sm text-slate-500">Review and process pending payout requests from CAs.</p>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">Freelancer Withdrawal Requests</h3>
+                    <p className="text-sm text-slate-500">Review and process pending payout requests from Freelancers.</p>
                 </div>
             </div>
 
@@ -323,7 +323,7 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-700/50 text-slate-500">
                         <tr>
-                            <th className="px-6 py-4 font-bold">CA Details</th>
+                            <th className="px-6 py-4 font-bold">Freelancer Details</th>
                             <th className="px-6 py-4 font-bold">Bank Info</th>
                             <th className="px-6 py-4 font-bold">Amount</th>
                             <th className="px-6 py-4 font-bold">Date</th>
@@ -395,10 +395,10 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
             {/* Header */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-                    <Scale className="text-[#F97316]" size={28} /> CA CRM Control Center <span className="text-slate-300 dark:text-slate-600">/</span> {TAB_NAMES[activeTab] || 'Settings'}
+                    <Scale className="text-[#F97316]" size={28} /> Freelancer CRM Control Center <span className="text-slate-300 dark:text-slate-600">/</span> {TAB_NAMES[activeTab] || 'Settings'}
                 </h1>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                    Master controls for CA onboarding, compliance rules, service configuration, and system-wide settings.
+                    Master controls for Freelancer onboarding, compliance rules, service configuration, and system-wide settings.
                 </p>
             </div>
 
@@ -429,7 +429,7 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                                     {[
                                         { time: '2 mins ago', user: 'Admin System', action: 'BULK_REMINDER', target: '342 Clients', status: 'SUCCESS' },
-                                        { time: '1 hour ago', user: 'CA Rahul Sharma', action: 'CERTIFICATE_UPLOAD', target: 'Order #8832', status: 'VERIFIED' },
+                                        { time: '1 hour ago', user: 'Freelancer Rahul Sharma', action: 'CERTIFICATE_UPLOAD', target: 'Order #8832', status: 'VERIFIED' },
                                         { time: '3 hours ago', user: 'System Auto', action: 'STATUS_UPDATE', target: 'Order #7721', status: 'AUTO_FILED' },
                                         { time: 'Yesterday', user: 'Admin Master', action: 'PERMISSION_CHANGE', target: 'Associate CA Role', status: 'UPDATED' }
                                     ].map((log, i) => (
@@ -459,7 +459,7 @@ const CACRMControl = ({ defaultTab = 'compliance' }) => {
                         <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-2xl border border-red-100 dark:border-red-900/30">
                             <h3 className="text-red-600 font-black tracking-tight flex items-center gap-2 mb-4 uppercase text-xs"><AlertTriangle size={18} /> Emergency Controls</h3>
                             <div className="space-y-3">
-                                <button className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-2 border-red-200 text-red-600 font-bold text-sm rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm">Suspend All CA Portal Access</button>
+                                <button className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-2 border-red-200 text-red-600 font-bold text-sm rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm">Suspend All Freelancer Portal Access</button>
                                 <button className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-2 border-red-200 text-red-600 font-bold text-sm rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm">Force Termination of All Bids</button>
                             </div>
                         </div>

@@ -31,6 +31,15 @@ const AdminDashboardPage = ({ onLogout, user }) => {
     const currentUser = user || JSON.parse(localStorage.getItem('user') || '{}');
     const role = (currentUser.email?.toLowerCase() === 'admin@shinefiling.com') ? 'MASTER_ADMIN' : currentUser.role;
 
+    const displayRoles = {
+        'MASTER_ADMIN': 'Master Administrator',
+        'SUB_ADMIN': 'Sub Administrator',
+        'AGENT_ADMIN': 'Partner Administrator',
+        'AGENT': 'Partner',
+        'CA': 'Freelancer',
+        'USER': 'Client'
+    };
+
     const [notifications, setNotifications] = useState([]);
     const prevNotifCount = useRef(0);
     const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'));
@@ -140,11 +149,11 @@ const AdminDashboardPage = ({ onLogout, user }) => {
             },
             {
                 icon: Briefcase,
-                label: 'Agent CRM',
+                label: 'Partner CRM',
                 id: 'agent_approvals',
                 section: 'RELATIONSHIP MANAGEMENT',
                 children: [
-                    { label: 'Dashboard', id: 'agent_dashboard', icon: LayoutDashboard },
+                    { label: 'Partner Hub', id: 'agent_dashboard', icon: LayoutDashboard },
                     { label: 'Partner Directory', id: 'agent_list', icon: Users },
                     { label: 'Pending Approvals', id: 'agent_pending', icon: AlertTriangle },
                     { label: 'Active Partners', id: 'agent_active', icon: CheckCircle }
@@ -152,12 +161,12 @@ const AdminDashboardPage = ({ onLogout, user }) => {
             },
             {
                 icon: Scale,
-                label: 'CA CRM',
+                label: 'Freelancer CRM',
                 id: 'ca_crm',
                 section: 'RELATIONSHIP MANAGEMENT',
                 children: [
                     { label: 'Dashboard', id: 'ca_dashboard', icon: LayoutDashboard },
-                    { label: 'CA Directory', id: 'ca_list', icon: Users },
+                    { label: 'Freelancer Directory', id: 'ca_list', icon: Users },
                     { label: 'Compliance Rules', id: 'ca_compliance', icon: Calendar },
                     { label: 'Service Config', id: 'ca_services', icon: Briefcase },
                     { label: 'Billing & Fees', id: 'ca_billing', icon: DollarSign },
@@ -248,8 +257,8 @@ const AdminDashboardPage = ({ onLogout, user }) => {
                 section: 'ADMINISTRATION',
                 children: [
                     { label: 'User Access', id: 'access_users', icon: Users },
-                    { label: 'CA Permissions', id: 'access_cas', icon: Briefcase },
-                    { label: 'Agent Permissions', id: 'access_agents', icon: UserCheck }
+                    { label: 'Freelancer Permissions', id: 'access_cas', icon: Briefcase },
+                    { label: 'Partner Permissions', id: 'access_agents', icon: UserCheck }
                 ]
             },
             {
@@ -476,7 +485,7 @@ const AdminDashboardPage = ({ onLogout, user }) => {
                         <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-700 ml-2">
                             <div className="hidden md:block text-right">
                                 <p className="text-sm font-bold text-slate-800 dark:text-white leading-none">{currentUser.fullName || 'Administrator'}</p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1">{role.replace('_', ' ')}</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1 uppercase tracking-tighter">{displayRoles[role] || role?.replace('_', ' ')}</p>
                             </div>
                             <button className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-2 ring-transparent hover:ring-[#F97316] transition-all relative group">
                                 {currentUser.profileImage ? (

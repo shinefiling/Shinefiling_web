@@ -10,6 +10,7 @@ import com.shinefiling.common.model.ServiceRequest;
 import com.shinefiling.common.service.ServiceRequestService;
 import com.shinefiling.common.service.EmailService;
 import com.shinefiling.common.service.NotificationService;
+import com.shinefiling.common.service.TemplateService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +47,9 @@ public class UserController {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private TemplateService templateService;
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getUser(@PathVariable Long id) {
@@ -206,14 +210,12 @@ public class UserController {
                 "KYC_APPROVAL");
 
         try {
-            emailService.sendEmail(
+            templateService.sendTemplatedEmail(
                     user.getEmail(),
-                    "Account Activated - ShineFiling Partner Program",
-                    "Dear " + user.getFullName() + ",\n\n" +
-                            "Congratulations! Your KYC documents have been verified and your account is now active.\n\n"
-                            +
-                            "Best Regards,\nShineFiling Team");
+                    "KYC_APPROVAL",
+                    java.util.Map.of("name", user.getFullName()));
         } catch (Exception e) {
+            System.err.println("Failed to send KYC Approval email: " + e.getMessage());
         }
 
         return ResponseEntity.ok(Map.of("message", "Agent KYC Approved and Account Activated"));
@@ -237,14 +239,12 @@ public class UserController {
                 "KYC_REJECTION");
 
         try {
-            emailService.sendEmail(
+            templateService.sendTemplatedEmail(
                     user.getEmail(),
-                    "KYC Application Requires Action - ShineFiling",
-                    "Dear " + user.getFullName() + ",\n\n" +
-                            "Your KYC application has been reviewed and requires attention.\n\n" +
-                            "Reason: " + reason + "\n\n" +
-                            "Best Regards,\nShineFiling Team");
+                    "KYC_REJECTION",
+                    java.util.Map.of("name", user.getFullName(), "reason", reason));
         } catch (Exception e) {
+            System.err.println("Failed to send KYC Rejection email: " + e.getMessage());
         }
 
         return ResponseEntity.ok(Map.of("message", "Agent KYC Rejected"));
